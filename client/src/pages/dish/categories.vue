@@ -5,9 +5,11 @@ import type { CategoryView } from '@/api/dish';
 import { getCurrentKitchenId } from '@/api/kitchen';
 import { onShow } from '@dcloudio/uni-app';
 import { ref } from 'vue';
+import InputDialog from '@/components/input-dialog.vue';
 
 const kitchenId = ref<number | null>(getCurrentKitchenId());
 const categories = ref<CategoryView[]>([]);
+const addDialogVisible = ref(false);
 
 onShow(load);
 
@@ -20,16 +22,9 @@ async function load() {
   }
 }
 
-function add() {
-  uni.showModal({
-    title: '添加分类',
-    editable: true,
-    placeholderText: '如：荤菜 / 素菜 / 汤羹',
-    success: (res) => {
-      if (!res.confirm || !res.content || !res.content.trim()) return;
-      dishApi.createCategory(kitchenId.value!, res.content.trim()).then(load);
-    },
-  });
+function onAdd(name: string) {
+  addDialogVisible.value = false;
+  dishApi.createCategory(kitchenId.value!, name).then(load);
 }
 
 function remove(c: CategoryView) {
@@ -57,8 +52,17 @@ function remove(c: CategoryView) {
         <text class="del" hover-class="press-dim" @tap="remove(c)">删除</text>
       </view>
     </view>
-    <button class="btn-add" hover-class="press-sink" @tap="add">＋ 添加分类</button>
+    <button class="btn-add" hover-class="press-sink" @tap="addDialogVisible = true">＋ 添加分类</button>
     <text class="hint">免费版最多 5 个分类，升级厨房扩容到 50 个</text>
+
+    <InputDialog
+      :visible="addDialogVisible"
+      title="添加分类"
+      placeholder="如：荤菜 / 素菜 / 汤羹"
+      :maxlength="10"
+      @confirm="onAdd"
+      @close="addDialogVisible = false"
+    />
   </view>
 </template>
 

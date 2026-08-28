@@ -5,6 +5,8 @@ import type { CategoryView, DishSpec, DishView } from '@/api/dish';
 import { getCurrentKitchenId } from '@/api/kitchen';
 import { onLoad } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
+import ActionSheet from '@/components/action-sheet.vue';
+import InputDialog from '@/components/input-dialog.vue';
 
 const kitchenId = ref<number | null>(null);
 const dishId = ref<number | null>(null); // 有值=编辑
@@ -89,36 +91,44 @@ function chooseImage() {
 }
 
 function pickCategory() {
-  const names = categories.value.map((c) => c.name);
-  uni.showActionSheet({
-    itemList: names.length > 0 ? names : ['暂无分类，先去添加'],
-    success: ({ tapIndex }) => {
-      if (categories.value.length === 0) return;
-      categoryId.value = categories.value[tapIndex].id;
-    },
+  if (categories.value.length === 0) {
+    catDialogVisible.value = true;
+    return;
+  }
+  catSheetVisible.value = true;
+}
+
+const catSheetVisible = ref(false);
+const catItems = computed(() =>
+  categories.value.map((c) => ({ key: String(c.id), title: c.name, desc: `${c.dishCount}道菜` }))
+);
+
+function onCatPick(key: string) {
+  catSheetVisible.value = false;
+  categoryId.value = Number(key);
+}
+
+const catDialogVisible = ref(false);
+
+function onCatCreate(name: string) {
+  catDialogVisible.value = false;
+  dishApi.createCategory(kitchenId.value!, name).then((c) => {
+    loadCategories();
+    categoryId.value = c.id;
   });
 }
 
-function addCategory() {
-  uni.showModal({
-    title: '添加分类',
-    editable: true,
-    placeholderText: '如：荤菜 / 素菜 / 汤羹',
-    success: (res) => {
-      if (!res.confirm || !res.content || !res.content.trim()) return;
-      dishApi.createCategory(kitchenId.value!, res.content.trim()).then((c) => {
-        loadCategories();
-        categoryId.value = c.id;
-      });
-    },
-  });
-}
+const diffSheetVisible = ref(false);
 
 function pickDifficulty() {
-  uni.showActionSheet({
-    itemList: difficulties,
-    success: ({ tapIndex }) => (difficulty.value = difficulties[tapIndex]),
-  });
+  diffSheetVisible.value = true;
+}
+
+const diffItems = difficulties.map((d) => ({ key: d, title: d }));
+
+function onDiffPick(key: string) {
+  diffSheetVisible.value = false;
+  difficulty.value = key;
 }
 
 function toggleSpecs(e: { detail: { value: boolean } }) {
@@ -219,7 +229,7 @@ function toast(title: string) {
       </view>
       <view class="row">
         <text class="label">没有合适分类？</text>
-        <text class="link" hover-class="press-dim" @tap="addCategory">＋ 添加分类</text>
+        <text class="link" hover-class="press-dim" @tap="catDialogVisible = true">＋ 添加分类</text>
       </view>
       <view class="row col">
         <view class="row-inner">
@@ -319,6 +329,18 @@ function toast(title: string) {
     <button class="btn-publish" :disabled="saving" hover-class="press-sink" @tap="submit">
       {{ dishId ? '保存修改' : '发布菜谱' }}
     </button>
+
+    <!-- 分类选择 / 难度选择 / 添加分类弹层 -->
+    <ActionSheet :visible="catSheetVisible" :items="catItems" @select="onCatPick" @close="catSheetVisible = false" />
+    <ActionSheet :visible="diffSheetVisible" :items="diffItems" @select="onDiffPick" @close="diffSheetVisible = false" />
+    <InputDialog
+      :visible="catDialogVisible"
+      title="添加分类"
+      placeholder="如：荤菜 / 素菜 / 汤羹"
+      :maxlength="10"
+      @confirm="onCatCreate"
+      @close="catDialogVisible = false"
+    />
   </view>
 </template>
 

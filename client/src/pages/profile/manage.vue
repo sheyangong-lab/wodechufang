@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { theme } from '@/styles/theme';
 import { kitchenApi, setCurrentKitchen, clearCurrentKitchen, ROLE_LABELS } from '@/api/kitchen';
-import type { KitchenDetail } from '@/api/kitchen';
+import type { KitchenDetail, KitchenView } from '@/api/kitchen';
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
+import ActionSheet from '@/components/action-sheet.vue';
+import InputDialog from '@/components/input-dialog.vue';
 
 const detail = ref<KitchenDetail | null>(null);
 const isOwner = computed(() => detail.value?.kitchen.myRole === 'OWNER');
@@ -37,56 +39,63 @@ function copyCode() {
   });
 }
 
+const switchSheetVisible = ref(false);
+const switchItems = ref<{ key: string; title: string; desc: string }[]>([]);
+
 function switchKitchen() {
   kitchenApi.mine().then((list) => {
     if (list.length <= 1) {
       uni.showToast({ title: '你只有一个厨房，无需切换', icon: 'none' });
       return;
     }
-    uni.showActionSheet({
-      itemList: list.map((k) => `${k.name}（${ROLE_LABELS[k.myRole] || k.myRole}）`),
-      success: ({ tapIndex }) => {
-        setCurrentKitchen(list[tapIndex]);
-        uni.showToast({ title: `已切换到「${list[tapIndex].name}」`, icon: 'none' });
-        refresh();
-      },
-    });
+    switchItems.value = list.map((k: KitchenView) => ({
+      key: String(k.id),
+      title: k.name,
+      desc: `${ROLE_LABELS[k.myRole] || k.myRole} · ${k.memberCount}人`,
+    }));
+    switchSheetVisible.value = true;
   });
 }
+
+function onSwitch(key: string) {
+  switchSheetVisible.value = false;
+  kitchenApi.mine().then((list) => {
+    const k = list.find((x) => String(x.id) === key);
+    if (!k) return;
+    setCurrentKitchen(k);
+    uni.showToast({ title: `已切换到「${k.name}」`, icon: 'none' });
+    refresh();
+  });
+}
+
+const nameDialogVisible = ref(false);
 
 function editKitchen() {
   if (!detail.value) return;
-  uni.showModal({
-    title: '修改厨房名称',
-    editable: true,
-    placeholderText: detail.value.kitchen.name,
-    success: (res) => {
-      if (!res.confirm || !res.content || !res.content.trim()) return;
-      kitchenApi.update(detail.value!.kitchen.id, { name: res.content!.trim() })
-        .then((k) => {
-          setCurrentKitchen(k);
-          uni.showToast({ title: '已保存', icon: 'none' });
-          refresh();
-        });
-    },
+  nameDialogVisible.value = true;
+}
+
+function onRename(name: string) {
+  nameDialogVisible.value = false;
+  kitchenApi.update(detail.value!.kitchen.id, { name }).then((k) => {
+    setCurrentKitchen(k);
+    uni.showToast({ title: '已保存', icon: 'none' });
+    refresh();
   });
 }
 
+const announceDialogVisible = ref(false);
+
 function editAnnouncement() {
-  if (!detail.value) return;
-  uni.showModal({
-    title: '编辑公告',
-    editable: true,
-    placeholderText: detail.value.kitchen.announcement || '写点公告给成员看',
-    success: (res) => {
-      if (!res.confirm || res.content == null) return;
-      kitchenApi.update(detail.value!.kitchen.id, { announcement: res.content })
-        .then((k) => {
-          setCurrentKitchen(k);
-          uni.showToast({ title: '公告已更新', icon: 'none' });
-          refresh();
-        });
-    },
+  announceDialogVisible.value = true;
+}
+
+function onAnnouncement(text: string) {
+  announceDialogVisible.value = false;
+  kitchenApi.update(detail.value!.kitchen.id, { announcement: text }).then((k) => {
+    setCurrentKitchen(k);
+    uni.showToast({ title: '公告已更新', icon: 'none' });
+    refresh();
   });
 }
 
@@ -182,7 +191,8 @@ function onGrid(item: string) {
           <text class="quota-num">{{ catUsage.used }}/{{ catUsage.total }}</text>
         </view>
 
-        <text class="meta-line">创始人：{{ detail.kitchen.ownerNickname }}<text v-if="isOwner" class="meta-link" hover-class="press-dim" @tap="editKitchen"> 变更</text></text>
+        <text class="meta-line">公告：{{ detail.kitchen.announcement || '暂无' }}<text v-if="isOwner" class="meta-link" hover-class="press-dim" @tap="editAnnouncement"> 编辑</text></text>
+        <text class="meta-line">创始人：{{ detail.kitchen.ownerNickname }}</text>
         <text class="meta-line">厨房会员：{{ isVip ? '生效中' : '未开通' }}<text class="meta-link" hover-class="press-dim" @tap="upgrade"> 去开通</text></text>
 
         <button class="btn-upgrade" hover-class="press-sink" @tap="upgrade">升级厨房</button>
@@ -210,6 +220,32 @@ function onGrid(item: string) {
           <text v-for="g in gridVip" :key="g" class="grid-item vip" hover-class="press-dim" @tap="upgrade">{{ g }}<text class="vip-tag">会员</text></text>
         </view>
       </view>
+
+      <!-- 切换厨房 / 改名 / 编辑公告弹层 -->
+      <ActionSheet
+        :visible="switchSheetVisible"
+        :items="switchItems"
+        @select="onSwitch"
+        @close="switchSheetVisible = false"
+      />
+      <InputDialog
+        :visible="nameDialogVisible"
+        title="修改厨房名称"
+        :default-value="detail?.kitchen.name"
+        :maxlength="20"
+        @confirm="onRename"
+        @close="nameDialogVisible = false"
+      />
+      <InputDialog
+        :visible="announceDialogVisible"
+        title="编辑公告"
+        type="textarea"
+        :default-value="detail?.kitchen.announcement"
+        placeholder="写点公告给成员看"
+        :maxlength="100"
+        @confirm="onAnnouncement"
+        @close="announceDialogVisible = false"
+      />
     </template>
   </view>
 </template>

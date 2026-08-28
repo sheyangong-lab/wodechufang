@@ -7,6 +7,8 @@ import { dishApi, fenToYuan, fullUrl } from '@/api/dish';
 import type { CategoryView, DishView } from '@/api/dish';
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
+import ActionSheet from '@/components/action-sheet.vue';
+import type { SheetItem } from '@/components/action-sheet.vue';
 
 const loggedIn = ref(!!loadUser());
 const hasKitchen = ref(false);
@@ -134,22 +136,27 @@ function openDish(d: DishView) {
 }
 
 function addDish() {
-  uni.showActionSheet({
-    itemList: ['手动添加', '克隆菜谱', '快捷导入', '广场偷菜', '批量添加'],
-    success: ({ tapIndex }) => {
-      if (tapIndex === 0) {
-        uni.navigateTo({ url: '/pages/dish/edit' });
-      } else if (tapIndex === 1) {
-        uni.showToast({ title: '克隆菜谱：M8 开发', icon: 'none' });
-      } else if (tapIndex === 2) {
-        uni.showToast({ title: '快捷导入：M8 开发', icon: 'none' });
-      } else if (tapIndex === 3) {
-        uni.showToast({ title: '广场偷菜：M8 开发', icon: 'none' });
-      } else {
-        uni.showToast({ title: '批量添加为会员功能，M6 开放', icon: 'none' });
-      }
-    },
-  });
+  addSheetVisible.value = true;
+}
+
+const addSheetVisible = ref(false);
+const addItems: SheetItem[] = [
+  { key: 'manual', title: '手动添加', desc: '手动记录拿手菜做法与技巧' },
+  { key: 'clone', title: '克隆菜谱', desc: '复制厨房码，快速复刻同款菜单' },
+  { key: 'import', title: '快捷导入', desc: '复制链接，快速导入菜谱' },
+  { key: 'square', title: '广场偷菜', desc: '广场上百万菜谱供你选择', badge: '推荐' },
+  { key: 'batch', title: '批量添加', desc: '快速进行批量手动添加', badge: '会员', vip: true },
+];
+
+function onAddSelect(key: string) {
+  addSheetVisible.value = false;
+  if (key === 'manual') {
+    uni.navigateTo({ url: '/pages/dish/edit' });
+  } else if (key === 'clone' || key === 'import' || key === 'square') {
+    uni.showToast({ title: 'M8 开发', icon: 'none' });
+  } else {
+    uni.showToast({ title: '批量添加为会员功能，M6 开放', icon: 'none' });
+  }
 }
 
 function goLogin() {
@@ -299,6 +306,14 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
         <text class="invite" hover-class="press-bg">邀请下单</text>
         <text class="submit disabled" hover-class="press-dim">下单</text>
       </view>
+
+      <!-- 添加菜谱弹层（对照蓝本截图3） -->
+      <ActionSheet
+        :visible="addSheetVisible"
+        :items="addItems"
+        @select="onAddSelect"
+        @close="addSheetVisible = false"
+      />
     </block>
   </view>
 </template>

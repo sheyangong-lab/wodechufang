@@ -4,6 +4,7 @@ import { authApi, loadUser, logout } from '@/api/auth';
 import type { UserView } from '@/api/auth';
 import { onShow } from '@dcloudio/uni-app';
 import { ref } from 'vue';
+import InputDialog from '@/components/input-dialog.vue';
 
 const user = ref<UserView | null>(loadUser());
 const grid = [
@@ -24,21 +25,19 @@ function goLogin() {
   uni.navigateTo({ url: '/pages/login/login' });
 }
 
+const nameDialogVisible = ref(false);
+
 function editNickname() {
   if (!user.value) return;
-  uni.showModal({
-    title: '修改昵称',
-    editable: true,
-    placeholderText: user.value.nickname,
-    success: (res) => {
-      if (!res.confirm || !res.content || !res.content.trim()) return;
-      authApi.updateNickname(res.content!.trim()).then((u) => {
-        // 同步本地缓存
-        uni.setStorageSync('user', JSON.stringify(u));
-        user.value = u;
-        uni.showToast({ title: '昵称已更新', icon: 'none' });
-      });
-    },
+  nameDialogVisible.value = true;
+}
+
+function onNickname(nickname: string) {
+  nameDialogVisible.value = false;
+  authApi.updateNickname(nickname).then((u) => {
+    uni.setStorageSync('user', JSON.stringify(u));
+    user.value = u;
+    uni.showToast({ title: '昵称已更新', icon: 'none' });
   });
 }
 
@@ -95,6 +94,15 @@ function onLogout() {
         <text class="notice logout">退出登录</text>
       </view>
     </view>
+
+    <InputDialog
+      :visible="nameDialogVisible"
+      title="修改昵称"
+      :default-value="user?.nickname"
+      :maxlength="20"
+      @confirm="onNickname"
+      @close="nameDialogVisible = false"
+    />
   </view>
 </template>
 
