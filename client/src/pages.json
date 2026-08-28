@@ -1,0 +1,43 @@
+{
+  "pages": [
+    {
+      "path": "pages/kitchen/kitchen",
+      "style": { "navigationBarTitleText": "厨房", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
+      "path": "pages/order/order",
+      "style": { "navigationBarTitleText": "订单", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
+      "path": "pages/ledger/ledger",
+      "style": { "navigationBarTitleText": "账本", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
+      "path": "pages/fridge/fridge",
+      "style": { "navigationBarTitleText": "冰箱", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
+      "path": "pages/profile/profile",
+      "style": { "navigationBarTitleText": "我", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "共享厨房",
+    "navigationBarBackgroundColor": "#FFFBF2",
+    "backgroundColor": "#FFFBF2"
+  },
+  "tabBar": {
+    "color": "#8C7F6A",
+    "selectedColor": "#EFA63C",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/kitchen/kitchen", "text": "厨房" },
+      { "pagePath": "pages/order/order", "text": "订单" },
+      { "pagePath": "pages/ledger/ledger", "text": "账本" },
+      { "pagePath": "pages/fridge/fridge", "text": "冰箱" },
+      { "pagePath": "pages/profile/profile", "text": "我" }
+    ]
+  }
+}
