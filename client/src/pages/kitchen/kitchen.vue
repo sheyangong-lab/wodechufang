@@ -3,7 +3,7 @@ import { theme } from '@/styles/theme';
 import { authApi, loadUser } from '@/api/auth';
 import { kitchenApi, getCurrentKitchenId, loadKitchenCache, setCurrentKitchen } from '@/api/kitchen';
 import type { KitchenDetail } from '@/api/kitchen';
-import { dishApi, fenToYuan, fullUrl } from '@/api/dish';
+import { dishApi, fenToYuan, fullUrl, parseSpecs } from '@/api/dish';
 import type { CategoryView, DishView } from '@/api/dish';
 import { useCartStore } from '@/stores/cart';
 import { onShow } from '@dcloudio/uni-app';
@@ -139,6 +139,16 @@ function openDish(d: DishView) {
   });
 }
 
+/** 点单模式快速加购：多规格菜跳详情选规格，简单菜直接进购物车 */
+function quickAdd(d: DishView) {
+  if (parseSpecs(d.specsJson).length > 0) {
+    uni.navigateTo({ url: `/pages/dish/detail?id=${d.id}` });
+    return;
+  }
+  cart.add(d);
+  uni.showToast({ title: `「${d.name}」已加入购物车`, icon: 'none' });
+}
+
 function addDish() {
   addSheetVisible.value = true;
 }
@@ -238,6 +248,7 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
             <view class="name-row">
               <text class="lv">Lv.{{ detail.kitchen.level }}</text>
               <text class="name">{{ detail.kitchen.name }}</text>
+              <image class="love" src="/static/icons/heart.png" mode="aspectFit" />
             </view>
             <text class="meta">共{{ detail.kitchen.memberCount }}人 ›</text>
           </view>
@@ -313,7 +324,15 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
                 <text v-for="i in d.recommendStars" :key="i" class="star on">★</text>
               </view>
               <text v-if="d.categoryName" class="dish-cat">{{ d.categoryName }}</text>
-              <text class="dish-price">¥{{ fenToYuan(d.priceFen) }}</text>
+              <view class="dish-bottom">
+                <text class="dish-price">¥{{ fenToYuan(d.priceFen) }}</text>
+                <text
+                  v-if="mode === 'order'"
+                  class="quick-add"
+                  hover-class="press-sink"
+                  @tap.stop="quickAdd(d)"
+                >＋</text>
+              </view>
             </view>
           </view>
         </view>
@@ -391,6 +410,7 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
 .name { font-size: 34rpx; font-weight: 600; color: v-bind('theme.title'); }
 .meta { font-size: 24rpx; color: v-bind('theme.sub'); }
 .qr { width: 44rpx; height: 44rpx; }
+.love { width: 32rpx; height: 32rpx; }
 .announce { display: block; margin-top: 16rpx; font-size: 24rpx; color: v-bind('theme.sub'); }
 
 .toolbar {
@@ -478,7 +498,13 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
   display: inline-block; font-size: 20rpx; color: v-bind('theme.sub');
   background: #f7f5ef; border-radius: 8rpx; padding: 2rpx 12rpx; margin-top: 8rpx;
 }
-.dish-price { display: block; font-size: 30rpx; font-weight: 700; color: v-bind('theme.income'); margin-top: 10rpx; }
+.dish-price { font-size: 30rpx; font-weight: 700; color: v-bind('theme.income'); }
+.dish-bottom { display: flex; align-items: center; justify-content: space-between; margin-top: 10rpx; }
+.quick-add {
+  width: 52rpx; height: 52rpx; border-radius: 50%;
+  background: v-bind('theme.primaryBtn'); color: #fff;
+  font-size: 36rpx; font-weight: 700; text-align: center; line-height: 48rpx;
+}
 
 .bottom-bar {
   position: fixed; left: 24rpx; right: 24rpx;

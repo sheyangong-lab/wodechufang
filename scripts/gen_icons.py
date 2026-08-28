@@ -155,6 +155,20 @@ def draw_basket(color) -> Image.Image:
     return img
 
 
+def draw_heart(color) -> Image.Image:
+    """爱心：两圆+三角剪影 → 腐蚀取边缘。"""
+    m = Image.new("L", (S, S), 0)
+    dm = ImageDraw.Draw(m)
+    dm.ellipse((u(0.12), u(0.16), u(0.52), u(0.52)), fill=255)
+    dm.ellipse((u(0.48), u(0.16), u(0.88), u(0.52)), fill=255)
+    dm.polygon([(u(0.16), u(0.40)), (u(0.84), u(0.40)), (u(0.50), u(0.88))], fill=255)
+    edge = ImageChops.subtract(m, m.filter(ImageFilter.MinFilter(stroke(0.042) | 1)))
+    img = canvas()
+    solid = Image.new("RGBA", (S, S), color)
+    img.paste(solid, (0, 0), edge)
+    return img
+
+
 # ---------- 输出 ----------
 
 def main():
@@ -182,6 +196,8 @@ def main():
         "qr.png": draw_qr(GRAY),
         "basket.png": draw_basket(GRAY),
         "receipt.png": draw_receipt(GRAY),
+        "heart.png": draw_heart((232, 131, 111, 255)),   # 情侣粉 #E8836F
+        "heart-light.png": draw_heart((247, 199, 187, 255)),
     }
     for name, img in inline.items():
         save(img, name, 96)

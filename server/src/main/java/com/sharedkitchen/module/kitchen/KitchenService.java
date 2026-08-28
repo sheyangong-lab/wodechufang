@@ -161,6 +161,31 @@ public class KitchenService {
         kitchenRepository.deleteById(kitchenId);
     }
 
+    /** 店长修改成员权限（MEMBER=管家 / CUSTOMER=顾客）；店长本人不可被改。 */
+    @Transactional
+    public MemberView setMemberRole(Long ownerId, Long kitchenId, Long targetUserId, String role) {
+        KitchenMember me = memberRepository.findByKitchenIdAndUserId(kitchenId, ownerId)
+                .orElseThrow(() -> new BusinessException(403, "你还不是该厨房的成员"));
+        if (!KitchenMember.ROLE_OWNER.equals(me.getRole())) {
+            throw new BusinessException(403, "只有店长可以修改成员权限");
+        }
+        if (!KitchenMember.ROLE_MEMBER.equals(role) && !KitchenMember.ROLE_CUSTOMER.equals(role)) {
+            throw new BusinessException("目标权限只能是 管家 或 顾客");
+        }
+        if (targetUserId.equals(ownerId)) {
+            throw new BusinessException("不能修改自己的权限");
+        }
+        KitchenMember target = memberRepository.findByKitchenIdAndUserId(kitchenId, targetUserId)
+                .orElseThrow(() -> new BusinessException(404, "该用户不是厨房成员"));
+        if (KitchenMember.ROLE_OWNER.equals(target.getRole())) {
+            throw new BusinessException("店长权限请在后台转移创始人时变更");
+        }
+        target.setRole(role);
+        memberRepository.save(target);
+        User u = userRepository.findById(targetUserId).orElse(null);
+        return new MemberView(targetUserId, u == null ? "" : u.getNickname(), role, target.getJoinedAt());
+    }
+
     private KitchenView toView(Kitchen k, String myRole, String ownerNickname) {
         long memberCount = memberRepository.countByKitchenId(k.getId());
         User owner = userRepository.findById(k.getOwnerId()).orElse(null);

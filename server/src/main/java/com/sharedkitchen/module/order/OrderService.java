@@ -246,11 +246,13 @@ public class OrderService {
                 .orElseThrow(() -> new BusinessException(403, "你还不是该厨房的成员"));
     }
 
+    /** 订单处理：店长（主账号）和管家（成员）都可以。 */
     private void requireOwner(Long kitchenId, Long userId) {
         KitchenMember m = memberRepository.findByKitchenIdAndUserId(kitchenId, userId)
                 .orElseThrow(() -> new BusinessException(403, "你还不是该厨房的成员"));
-        if (!KitchenMember.ROLE_OWNER.equals(m.getRole())) {
-            throw new BusinessException(403, "只有店长可以处理订单");
+        if (!KitchenMember.ROLE_OWNER.equals(m.getRole())
+                && !KitchenMember.ROLE_MEMBER.equals(m.getRole())) {
+            throw new BusinessException(403, "需要店长或管家权限");
         }
     }
 

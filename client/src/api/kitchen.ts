@@ -28,7 +28,7 @@ export interface KitchenDetail {
 
 export const ROLE_LABELS: Record<string, string> = {
   OWNER: '店长',
-  MEMBER: '成员',
+  MEMBER: '管家',
   CUSTOMER: '顾客',
 };
 
@@ -70,4 +70,11 @@ export const kitchenApi = {
     request<KitchenView>({ url: `/api/kitchens/${id}`, method: 'PUT', data }),
   dissolve: (id: number) =>
     request<void>({ url: `/api/kitchens/${id}`, method: 'DELETE' }),
+  /** 店长修改成员权限：MEMBER=管家（可共同管理） / CUSTOMER=顾客（只点单） */
+  setMemberRole: (kitchenId: number, userId: number, role: 'MEMBER' | 'CUSTOMER') =>
+    request<{ userId: number; nickname: string; role: string; joinedAt: string }>({
+      url: `/api/kitchens/${kitchenId}/members/${userId}/role`,
+      method: 'PUT',
+      data: { role },
+    }),
 };

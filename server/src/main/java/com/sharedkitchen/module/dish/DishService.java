@@ -251,11 +251,13 @@ public class DishService {
                 .orElseThrow(() -> new BusinessException(404, "厨房不存在"));
     }
 
+    /** 菜单管理类操作：店长（主账号）和管家（成员）都可以；顾客不行。 */
     private void requireOwner(Long kitchenId, Long userId) {
         KitchenMember m = memberRepository.findByKitchenIdAndUserId(kitchenId, userId)
                 .orElseThrow(() -> new BusinessException(403, "你还不是该厨房的成员"));
-        if (!KitchenMember.ROLE_OWNER.equals(m.getRole())) {
-            throw new BusinessException(403, "只有店长可以操作菜单");
+        if (!KitchenMember.ROLE_OWNER.equals(m.getRole())
+                && !KitchenMember.ROLE_MEMBER.equals(m.getRole())) {
+            throw new BusinessException(403, "需要店长或管家权限");
         }
     }
 

@@ -71,4 +71,14 @@ public class KitchenController {
         kitchenService.dissolve(userId, id);
         return ApiResponse.ok();
     }
+
+    public record RoleReq(@jakarta.validation.constraints.NotBlank String role) {}
+
+    @org.springframework.web.bind.annotation.PutMapping("/{kitchenId}/members/{userId}/role")
+    public ApiResponse<KitchenService.MemberView> setMemberRole(
+            HttpServletRequest request, @PathVariable Long kitchenId,
+            @PathVariable Long userId, @RequestBody @Validated RoleReq req) {
+        Long operator = (Long) request.getAttribute(JwtAuthFilter.ATTR_USER_ID);
+        return ApiResponse.ok(kitchenService.setMemberRole(operator, kitchenId, userId, req.role()));
+    }
 }

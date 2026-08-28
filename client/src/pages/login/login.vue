@@ -54,8 +54,9 @@ async function doLogin(mode: 'login' | 'register') {
       <view class="logo-badge">
         <image class="logo-img" src="/static/icons/chefhat.png" mode="aspectFit" />
       </view>
+      <image class="logo-heart" src="/static/icons/heart.png" mode="aspectFit" />
       <text class="title">共享厨房</text>
-      <text class="sub">一起做饭，一起吃饭</text>
+      <text class="sub">两个人的小厨房，一起做饭一起吃饭</text>
     </view>
 
     <view class="card form">
@@ -106,11 +107,12 @@ async function doLogin(mode: 'login' | 'register') {
 }
 .logo-badge {
   width: 160rpx; height: 160rpx; border-radius: 40rpx;
-  background: v-bind('theme.primaryLight');
+  background: v-bind('theme.roseLight');
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4rpx 12rpx rgba(200, 160, 80, 0.15);
+  box-shadow: 0 4rpx 12rpx rgba(232, 131, 111, 0.2);
 }
 .logo-img { width: 96rpx; height: 96rpx; }
+.logo-heart { width: 36rpx; height: 36rpx; margin-top: 16rpx; }
 .title { font-size: 44rpx; font-weight: 700; color: v-bind('theme.title'); margin-top: 16rpx; }
 .sub { font-size: 26rpx; color: v-bind('theme.sub'); margin-top: 8rpx; }
 
