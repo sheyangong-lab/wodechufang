@@ -11,9 +11,11 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    /** 上传图片的静态映射：/files/** → data/uploads/（与 UploadController 约定一致）。 */
+    /** 上传图片与导出文件的静态映射：/files/** → data/uploads/，/files/exports/** → data/exports/。 */
     @Override
     public void addResourceHandlers(org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry registry) {
+        registry.addResourceHandler("/files/exports/**")
+                .addResourceLocations("file:./data/exports/");
         registry.addResourceHandler("/files/**")
                 .addResourceLocations("file:./data/uploads/");
     }

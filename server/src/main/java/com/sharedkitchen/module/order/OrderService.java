@@ -25,17 +25,20 @@ public class OrderService {
     private final DishRepository dishRepository;
     private final KitchenMemberRepository memberRepository;
     private final UserRepository userRepository;
+    private final com.sharedkitchen.module.ledger.LedgerService ledgerService;
 
     public OrderService(OrderRepository orderRepository,
                         OrderItemRepository itemRepository,
                         DishRepository dishRepository,
                         KitchenMemberRepository memberRepository,
-                        UserRepository userRepository) {
+                        UserRepository userRepository,
+                        com.sharedkitchen.module.ledger.LedgerService ledgerService) {
         this.orderRepository = orderRepository;
         this.itemRepository = itemRepository;
         this.dishRepository = dishRepository;
         this.memberRepository = memberRepository;
         this.userRepository = userRepository;
+        this.ledgerService = ledgerService;
     }
 
     /** 下单：服务端按菜品当前价重算（快照校验），忽略客户端传来的任何价格。 */
@@ -149,6 +152,7 @@ public class OrderService {
         order.setStatus(Order.ST_COMPLETED);
         order.setUpdatedAt(now());
         orderRepository.save(order);
+        ledgerService.recordOrderIncome(order); // M5：完成即自动入账
         return toViews(List.of(order)).get(0);
     }
 
@@ -173,6 +177,7 @@ public class OrderService {
         order.setStatus(Order.ST_REFUNDED);
         order.setUpdatedAt(now());
         orderRepository.save(order);
+        ledgerService.recordOrderRefund(order); // M5：退款自动冲销
         return toViews(List.of(order)).get(0);
     }
 
