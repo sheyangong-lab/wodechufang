@@ -1,19 +1,27 @@
 <script setup lang="ts">
 import { theme } from '@/styles/theme';
 import { kitchenApi, setCurrentKitchen, clearCurrentKitchen, ROLE_LABELS } from '@/api/kitchen';
-import type { KitchenDetail, KitchenView } from '@/api/kitchen';
+import type { KitchenDetail, KitchenView, VipStatus } from '@/api/kitchen';
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import ActionSheet from '@/components/action-sheet.vue';
 import InputDialog from '@/components/input-dialog.vue';
 
 const detail = ref<KitchenDetail | null>(null);
+const vip = ref<VipStatus | null>(null);
 const isOwner = computed(() => detail.value?.kitchen.myRole === 'OWNER');
-const isVip = computed(() => !!detail.value?.kitchen.vipExpireAt);
+const isVip = computed(() => !!detail.value?.kitchen.vip);
+const redeemDialogVisible = ref(false);
 
-// 额度进度（菜品/分类在 M2 后随真实数据变化）
-const dishUsage = computed(() => ({ used: 0, total: detail.value?.kitchen.dishQuota ?? 50 }));
-const catUsage = computed(() => ({ used: 0, total: detail.value?.kitchen.categoryQuota ?? 5 }));
+// 额度进度（会员动态扩容：50/5 → 500/50）
+const dishUsage = computed(() => ({
+  used: 0,
+  total: detail.value?.kitchen.effectiveDishQuota ?? 50,
+}));
+const catUsage = computed(() => ({
+  used: 0,
+  total: detail.value?.kitchen.effectiveCategoryQuota ?? 5,
+}));
 
 onShow(refresh);
 
@@ -110,7 +118,33 @@ function goBind() {
 }
 
 function upgrade() {
-  uni.showToast({ title: '会员功能，M6 上线', icon: 'none' });
+  vip.value = null;
+  kitchenApi.vipStatus(detail.value!.kitchen.id).then((s) => {
+    vip.value = s;
+    const plans = s.plans.map((p) => `${p.name} ¥${(p.priceFen / 100).toFixed(0)}（${p.durationDays}天）`);
+    uni.showActionSheet({
+      itemList: [...plans, '输入兑换码'],
+      success: ({ tapIndex }) => {
+        if (tapIndex < plans.length) {
+          uni.showToast({ title: '在线支付即将开放，请用兑换码开通', icon: 'none' });
+        } else {
+          redeemDialogVisible.value = true;
+        }
+      },
+    });
+  });
+}
+
+function onRedeem(code: string) {
+  redeemDialogVisible.value = false;
+  kitchenApi.redeemVip(detail.value!.kitchen.id, code).then((s) => {
+    vip.value = s;
+    uni.showToast({
+      title: s.isVip ? `会员已开通，有效期至 ${s.expireDate}` : '兑换异常',
+      icon: 'none',
+    });
+    refresh();
+  });
 }
 
 function placeholder(name: string, milestone = '后续版本') {
@@ -193,9 +227,11 @@ function onGrid(item: string) {
 
         <text class="meta-line">公告：{{ detail.kitchen.announcement || '暂无' }}<text v-if="isOwner" class="meta-link" hover-class="press-dim" @tap="editAnnouncement"> 编辑</text></text>
         <text class="meta-line">创始人：{{ detail.kitchen.ownerNickname }}</text>
-        <text class="meta-line">厨房会员：{{ isVip ? '生效中' : '未开通' }}<text class="meta-link" hover-class="press-dim" @tap="upgrade"> 去开通</text></text>
+        <text class="meta-line">厨房会员：{{ isVip ? `生效中（至 ${detail.kitchen.vipExpireAt?.slice(0, 10)}）` : '未开通' }}<text class="meta-link" hover-class="press-dim" @tap="upgrade"> {{ isVip ? '续费' : '去开通' }}</text></text>
 
-        <button class="btn-upgrade" hover-class="press-sink" @tap="upgrade">升级厨房</button>
+        <button class="btn-upgrade" hover-class="press-sink" @tap="upgrade">
+          {{ isVip ? '续费厨房会员' : '升级厨房' }}
+        </button>
         <text v-if="isOwner" class="dissolve" hover-class="press-dim" @tap="dissolve">解散厨房</text>
       </view>
 
@@ -245,6 +281,14 @@ function onGrid(item: string) {
         :maxlength="100"
         @confirm="onAnnouncement"
         @close="announceDialogVisible = false"
+      />
+      <InputDialog
+        :visible="redeemDialogVisible"
+        title="兑换厨房会员"
+        placeholder="输入兑换码"
+        :maxlength="30"
+        @confirm="onRedeem"
+        @close="redeemDialogVisible = false"
       />
     </template>
   </view>

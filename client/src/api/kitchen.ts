@@ -12,6 +12,24 @@ export interface KitchenView {
   dishQuota: number;
   categoryQuota: number;
   vipExpireAt: string | null;
+  vip: boolean;
+  effectiveDishQuota: number;
+  effectiveCategoryQuota: number;
+}
+
+export interface VipPlanView {
+  id: number;
+  name: string;
+  durationDays: number;
+  priceFen: number;
+}
+
+export interface VipStatus {
+  isVip: boolean;
+  expireDate: string | null;
+  dishQuota: number;
+  categoryQuota: number;
+  plans: VipPlanView[];
 }
 
 export interface MemberView {
@@ -69,4 +87,8 @@ export const kitchenApi = {
     request<KitchenView>({ url: `/api/kitchens/${id}`, method: 'PUT', data }),
   dissolve: (id: number) =>
     request<void>({ url: `/api/kitchens/${id}`, method: 'DELETE' }),
+  vipStatus: (id: number) =>
+    request<VipStatus>({ url: `/api/kitchens/${id}/vip/status` }),
+  redeemVip: (id: number, code: string) =>
+    request<VipStatus>({ url: `/api/kitchens/${id}/vip/redeem`, method: 'POST', data: { code } }),
 };

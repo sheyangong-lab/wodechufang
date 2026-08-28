@@ -37,8 +37,9 @@ public class DishService {
         requireOwner(kitchenId, userId);
         Kitchen kitchen = requireKitchen(kitchenId);
         long count = dishRepository.countByKitchenIdAndDeleted(kitchenId, 0);
-        if (count >= kitchen.getDishQuota()) {
-            throw new BusinessException("菜品数已达上限 " + kitchen.getDishQuota() + " 道，升级厨房可扩容");
+        int quota = com.sharedkitchen.module.vip.VipService.effectiveDishQuota(kitchen);
+        if (count >= quota) {
+            throw new BusinessException("菜品数已达上限 " + quota + " 道，升级厨房可扩容");
         }
         Dish dish = new Dish();
         apply(dish, kitchenId, req);
@@ -84,7 +85,8 @@ public class DishService {
         requireOwner(dish.getKitchenId(), userId);
         Kitchen kitchen = requireKitchen(dish.getKitchenId());
         long count = dishRepository.countByKitchenIdAndDeleted(dish.getKitchenId(), 0);
-        if (count >= kitchen.getDishQuota()) {
+        int quota = com.sharedkitchen.module.vip.VipService.effectiveDishQuota(kitchen);
+        if (count >= quota) {
             throw new BusinessException("菜品数已达上限，无法恢复");
         }
         dish.setDeleted(0);
@@ -138,9 +140,9 @@ public class DishService {
         if (trimmed.length() > 10) {
             throw new BusinessException("分类名最多10个字");
         }
-        if (categoryRepository.findByKitchenIdOrderBySortAscIdAsc(kitchenId).size()
-                >= kitchen.getCategoryQuota()) {
-            throw new BusinessException("分类数已达上限 " + kitchen.getCategoryQuota() + " 个，升级厨房可扩容");
+        int quota = com.sharedkitchen.module.vip.VipService.effectiveCategoryQuota(kitchen);
+        if (categoryRepository.findByKitchenIdOrderBySortAscIdAsc(kitchenId).size() >= quota) {
+            throw new BusinessException("分类数已达上限 " + quota + " 个，升级厨房可扩容");
         }
         Category c = new Category();
         c.setKitchenId(kitchenId);
