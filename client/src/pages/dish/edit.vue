@@ -12,6 +12,12 @@ const kitchenId = ref<number | null>(null);
 const dishId = ref<number | null>(null); // 有值=编辑
 const saving = ref(false);
 const showAdvanced = ref(false);
+const editorCtx = ref<any>(null);
+const editorReady = ref(false);
+const stepImageCount = ref(0);
+const originalSteps = ref('');
+const editorTouched = ref(false);
+const suppressInput = ref(false); // 程序化灌入内容时屏蔽 input 事件
 
 const imageUrl = ref('');
 const name = ref('');
@@ -65,7 +71,9 @@ async function fillFromServer(id: number) {
     }
     shareSquare.value = d.shareSquare === 1;
     materials.value = d.materials;
-    steps.value = d.steps;
+    originalSteps.value = d.steps;
+    // 富文本：编辑器就绪后异步灌入历史内容
+    waitEditor(() => setEditorHtml(d.steps));
     servings.value = d.servings;
     cookMinutes.value = d.cookMinutes ? String(d.cookMinutes) : '';
     difficulty.value = d.difficulty || '简单';
@@ -73,6 +81,94 @@ async function fillFromServer(id: number) {
   } catch {
     // toast 已统一弹出
   }
+}
+
+/** 旧数据是纯文本换行；含标签则剥离为纯文本行 */
+function toPlainLines(steps: string): string[] {
+  if (!steps) return [];
+  if (steps.includes('<')) {
+    return steps
+      .replace(/<img[^>]*>/g, '\n[图]\n')
+      .replace(/<\/(p|div|h\d|li)>/g, '\n')
+      .replace(/<br\s*\/?>/g, '\n')
+      .replace(/<[^>]+>/g, '')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l && l !== '[图]');
+  }
+  return steps.split('\n').filter((l) => l.trim());
+}
+
+function setEditorHtml(html: string) {
+  const ctx = editorCtx.value;
+  if (!ctx) return;
+  const lines = toPlainLines(html);
+  if (lines.length === 0) return;
+  suppressInput.value = true;
+  // 首选 delta（跨端一致性最好），失败回退逐行 insertText
+  ctx.setContents({
+    delta: { ops: lines.map((l) => ({ insert: l + '\n' })) },
+    success: () => (suppressInput.value = false),
+    fail: () => {
+      let chain: Promise<void> = Promise.resolve();
+      lines.forEach((l) => {
+        chain = chain.then(() => ctx.insertText({ text: l + '\n' }));
+      });
+      chain.then(() => (suppressInput.value = false));
+    },
+  });
+}
+
+function onEditorReady() {
+  // 跨端获取 EditorContext 的官方方式（H5/App/小程序通用）
+  uni.createSelectorQuery()
+    .select('#steps-editor')
+    .context((res: any) => {
+      if (res && res.context) {
+        editorCtx.value = res.context;
+        editorReady.value = true;
+      }
+    })
+    .exec();
+}
+
+function waitEditor(cb: () => void) {
+  if (editorReady.value) return cb();
+  const timer = setInterval(() => {
+    if (editorReady.value) {
+      clearInterval(timer);
+      cb();
+    }
+  }, 200);
+  setTimeout(() => clearInterval(timer), 8000);
+}
+
+function syncSteps(e: any) {
+  if (suppressInput.value) return; // 程序灌入内容触发的 input 不算用户编辑
+  steps.value = e.detail.html;
+  stepImageCount.value = (e.detail.html.match(/<img/g) || []).length;
+  editorTouched.value = true;
+}
+
+function fmt(cmd: string, value?: string) {
+  editorCtx.value?.format(cmd, value);
+}
+
+function insertStepImage() {
+  if (stepImageCount.value >= 8) {
+    uni.showToast({ title: '步骤最多 8 张图', icon: 'none' });
+    return;
+  }
+  uploadImage().then((url) => {
+    editorCtx.value?.insertImage({ src: fullUrl(url), width: '80%' });
+  }).catch(() => {});
+}
+
+function clearSteps() {
+  editorCtx.value?.clear();
+  steps.value = '';
+  stepImageCount.value = 0;
+  editorTouched.value = true;
 }
 
 async function loadCategories() {
@@ -172,7 +268,8 @@ function submit() {
     categoryId: categoryId.value,
     recommendStars: stars.value,
     materials: materials.value,
-    steps: steps.value,
+    // 未触碰编辑器时保留原步骤，防止 setContents 失败导致清空
+    steps: editorTouched.value ? steps.value : originalSteps.value,
     servings: servings.value.trim(),
     cookMinutes: cookMinutes.value ? Number(cookMinutes.value) : null,
     difficulty: difficulty.value,
@@ -286,17 +383,28 @@ function toast(title: string) {
       <text class="hint right">食材和用量之间用「:」隔开，多个用料换行</text>
     </view>
 
-    <!-- 制作过程 -->
+    <!-- 制作过程（富文本编辑器） -->
     <view class="card section">
-      <text class="sec-title">制作过程</text>
-      <textarea
-        v-model="steps"
-        class="area tall"
-        placeholder="1、热锅冷油…&#10;2、放入鸡蛋…"
-        placeholder-class="ph"
-        :maxlength="2000"
+      <view class="row" style="margin-top:0">
+        <text class="sec-title no-margin">制作过程</text>
+        <text class="img-count">{{ stepImageCount }}/8 图</text>
+      </view>
+      <view class="toolbar-rich">
+        <text class="tb-btn" hover-class="press-dim" @tap="fmt('bold')">B</text>
+        <text class="tb-btn italic" hover-class="press-dim" @tap="fmt('italic')">I</text>
+        <text class="tb-btn" hover-class="press-dim" @tap="fmt('underline')">U</text>
+        <text class="tb-btn" hover-class="press-dim" @tap="fmt('list', 'ordered')">1.</text>
+        <text class="tb-btn" hover-class="press-dim" @tap="fmt('list', 'bullet')">•</text>
+        <text class="tb-btn" hover-class="press-dim" @tap="insertStepImage">插图</text>
+        <text class="tb-btn del" hover-class="press-dim" @tap="clearSteps">清空</text>
+      </view>
+      <editor
+        id="steps-editor"
+        class="editor"
+        placeholder="1、热锅冷油…&#10;可加粗、列表、插入步骤图（≤8张）"
+        @ready="onEditorReady"
+        @input="syncSteps"
       />
-      <text class="hint right">步骤配图与富文本 M8 升级，最多 8 张图</text>
     </view>
 
     <!-- 高级设置 -->
@@ -420,11 +528,23 @@ function toast(title: string) {
 
 .sec-title { font-size: 30rpx; font-weight: 600; color: v-bind('theme.title'); }
 .sec-title.no-margin { margin: 0; }
-.area {
-  width: 100%; min-height: 140rpx; margin-top: 16rpx;
-  font-size: 26rpx; color: v-bind('theme.title'); line-height: 44rpx;
+.img-count { margin-left: auto; font-size: 22rpx; color: v-bind('theme.sub'); }
+.toolbar-rich {
+  display: flex; gap: 10rpx; align-items: center;
+  margin-top: 16rpx; padding: 10rpx;
+  background: v-bind('theme.primaryLight'); border-radius: 12rpx;
 }
-.area.tall { min-height: 220rpx; }
+.tb-btn {
+  min-width: 64rpx; text-align: center;
+  font-size: 26rpx; font-weight: 700; color: v-bind('theme.title');
+  background: #fff; border-radius: 8rpx; padding: 8rpx 12rpx;
+}
+.tb-btn.italic { font-style: italic; }
+.tb-btn.del { color: v-bind('theme.danger'); margin-left: auto; font-weight: 400; }
+.editor {
+  width: 100%; height: 360rpx; margin-top: 16rpx;
+  font-size: 26rpx; line-height: 44rpx;
+}
 
 .btn-publish {
   margin-top: 12rpx;

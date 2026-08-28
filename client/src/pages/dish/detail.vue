@@ -114,10 +114,14 @@ function fmtTime(iso: string) {
 
       <view v-if="dish.steps" class="card section">
         <text class="sec-title">制作过程</text>
-        <view v-for="(line, i) in dish.steps.split('\n').filter((l) => l.trim())" :key="i" class="step-line">
-          <text class="step-no">{{ i + 1 }}</text>
-          <text class="step-text">{{ line }}</text>
-        </view>
+        <!-- 富文本 HTML 直接渲染；旧纯文本按行编号 -->
+        <rich-text v-if="dish.steps.includes('<')" class="rich" :nodes="dish.steps" />
+        <block v-else>
+          <view v-for="(line, i) in dish.steps.split('\n').filter((l) => l.trim())" :key="i" class="step-line">
+            <text class="step-no">{{ i + 1 }}</text>
+            <text class="step-text">{{ line }}</text>
+          </view>
+        </block>
       </view>
 
       <!-- 点单：加入购物车 -->
@@ -208,6 +212,8 @@ function fmtTime(iso: string) {
   line-height: 52rpx; border-bottom: 2rpx solid v-bind('theme.divider');
 }
 .step-line { display: flex; gap: 16rpx; margin-bottom: 24rpx; }
+.rich { font-size: 28rpx; color: v-bind('theme.title'); line-height: 48rpx; }
+.rich img { max-width: 100%; border-radius: 12rpx; }
 .step-no {
   width: 40rpx; height: 40rpx; border-radius: 50%;
   background: v-bind('theme.primaryBtn'); color: #fff;
