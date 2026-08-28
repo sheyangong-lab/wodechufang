@@ -5,10 +5,13 @@ import { kitchenApi, getCurrentKitchenId, loadKitchenCache, setCurrentKitchen } 
 import type { KitchenDetail } from '@/api/kitchen';
 import { dishApi, fenToYuan, fullUrl } from '@/api/dish';
 import type { CategoryView, DishView } from '@/api/dish';
+import { useCartStore } from '@/stores/cart';
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import ActionSheet from '@/components/action-sheet.vue';
 import type { SheetItem } from '@/components/action-sheet.vue';
+
+const cart = useCartStore();
 
 const loggedIn = ref(!!loadUser());
 const hasKitchen = ref(false);
@@ -63,6 +66,7 @@ async function loadKitchen(id: number) {
     detail.value = await kitchenApi.detail(id);
     hasKitchen.value = true;
     loading.value = false;
+    cart.ensureKitchen(id);
     await Promise.all([loadCategories(), loadDishes()]);
   } catch {
     uni.removeStorageSync('kitchenId');
@@ -179,6 +183,24 @@ function copyCode() {
     data: detail.value.kitchen.code,
     success: () => uni.showToast({ title: '厨房码已复制，发给朋友即可加入', icon: 'none' }),
   });
+}
+
+// ----- 下单栏 -----
+
+function goRandom() {
+  uni.navigateTo({ url: '/pages/order/random' });
+}
+
+function goConfirm() {
+  if (cart.count === 0) {
+    uni.showToast({ title: '先从菜单里加点菜吧', icon: 'none' });
+    return;
+  }
+  uni.navigateTo({ url: '/pages/order/confirm' });
+}
+
+function invite() {
+  copyCode();
 }
 
 const emptyDishes = computed(() => !menuLoading.value && dishes.value.length === 0);
@@ -299,12 +321,14 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
 
       <!-- 底部下单栏（贴近 tabBar） -->
       <view class="bottom-bar">
-        <view class="cart-wrap" hover-class="press-dim">
+        <view class="cart-wrap" hover-class="press-dim" @tap="goConfirm">
           <image class="icon-lg" src="/static/icons/cart-active.png" mode="aspectFit" />
+          <text v-if="cart.count > 0" class="cart-badge">{{ cart.count }}</text>
         </view>
-        <text class="random" hover-class="press-dim">随机选菜</text>
-        <text class="invite" hover-class="press-bg">邀请下单</text>
-        <text class="submit disabled" hover-class="press-dim">下单</text>
+        <text v-if="cart.count > 0" class="cart-total">¥{{ fenToYuan(cart.totalFen) }}</text>
+        <text class="random" hover-class="press-dim" @tap="goRandom">随机选菜</text>
+        <text class="invite" hover-class="press-bg" @tap="invite">邀请下单</text>
+        <text class="submit" :class="{ disabled: cart.count === 0 }" hover-class="press-sink" @tap="goConfirm">下单</text>
       </view>
 
       <!-- 添加菜谱弹层（对照蓝本截图3） -->
@@ -466,8 +490,16 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
   border: 2rpx solid v-bind('theme.divider');
   z-index: 10;
 }
-.cart-wrap { display: flex; }
+.cart-wrap { display: flex; position: relative; }
 .icon-lg { width: 44rpx; height: 44rpx; }
+.cart-badge {
+  position: absolute; top: -14rpx; right: -18rpx;
+  min-width: 32rpx; height: 32rpx; border-radius: 16rpx;
+  background: v-bind('theme.danger'); color: #fff;
+  font-size: 20rpx; text-align: center; line-height: 32rpx;
+  padding: 0 6rpx; box-sizing: border-box;
+}
+.cart-total { font-size: 28rpx; font-weight: 700; color: v-bind('theme.income'); }
 .random { font-size: 26rpx; color: v-bind('theme.title'); text-decoration: underline; }
 .invite {
   margin-left: auto; font-size: 26rpx; color: v-bind('theme.primaryBtn');

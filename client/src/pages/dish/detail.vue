@@ -1,19 +1,41 @@
 <script setup lang="ts">
 import { theme } from '@/styles/theme';
 import { dishApi, fenToYuan, fullUrl, parseSpecs } from '@/api/dish';
-import type { DishView } from '@/api/dish';
+import type { DishView, DishSpec } from '@/api/dish';
+import { useCartStore } from '@/stores/cart';
 import { onLoad } from '@dcloudio/uni-app';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
+const cart = useCartStore();
 const dish = ref<DishView | null>(null);
 const isOwnerView = ref(false);
+const specs = ref<DishSpec[]>([]);
+const selectedSpec = ref<DishSpec | null>(null);
+
+const currentPriceFen = computed(() =>
+  selectedSpec.value ? selectedSpec.value.priceFen : dish.value?.priceFen ?? 0
+);
 
 onLoad((query) => {
   const id = query && query.id ? Number(query.id) : null;
   if (!id) return;
   isOwnerView.value = query && query.from === 'manage';
-  dishApi.detail(id).then((d) => (dish.value = d));
+  dishApi.detail(id).then((d) => {
+    dish.value = d;
+    specs.value = parseSpecs(d.specsJson);
+    selectedSpec.value = specs.value[0] || null;
+  });
 });
+
+function pickSpec(s: DishSpec) {
+  selectedSpec.value = s;
+}
+
+function addToCart() {
+  if (!dish.value) return;
+  cart.add(dish.value, selectedSpec.value || undefined);
+  uni.showToast({ title: '已加入购物车', icon: 'none' });
+}
 
 function edit() {
   if (dish.value) {
@@ -60,7 +82,17 @@ function fmtTime(iso: string) {
           <text class="name">{{ dish.name }}</text>
           <text v-if="dish.status === 0" class="off-tag">已下架</text>
         </view>
-        <text class="price">¥{{ fenToYuan(dish.priceFen) }}</text>
+        <text class="price">¥{{ fenToYuan(currentPriceFen) }}</text>
+        <view v-if="specs.length > 0" class="spec-chips">
+          <text
+            v-for="s in specs"
+            :key="s.name"
+            class="spec-chip"
+            :class="{ on: selectedSpec?.name === s.name }"
+            hover-class="press-dim"
+            @tap="pickSpec(s)"
+          >{{ s.name }}</text>
+        </view>
         <view v-if="dish.recommendStars > 0" class="stars">
           <text class="star on" v-for="i in dish.recommendStars" :key="i">★</text>
         </view>
@@ -86,6 +118,12 @@ function fmtTime(iso: string) {
           <text class="step-no">{{ i + 1 }}</text>
           <text class="step-text">{{ line }}</text>
         </view>
+      </view>
+
+      <!-- 点单：加入购物车 -->
+      <view class="cart-bar" v-if="dish.status === 1">
+        <text class="cart-price">¥{{ fenToYuan(currentPriceFen) }}</text>
+        <button class="cart-btn" hover-class="press-sink" @tap="addToCart">加入购物车</button>
       </view>
 
       <!-- 店长操作 -->
@@ -128,6 +166,30 @@ function fmtTime(iso: string) {
   border: 2rpx solid v-bind('theme.divider'); border-radius: 8rpx; padding: 2rpx 10rpx;
 }
 .price { display: block; font-size: 36rpx; font-weight: 700; color: v-bind('theme.income'); margin-top: 12rpx; }
+.spec-chips { display: flex; flex-wrap: wrap; gap: 14rpx; margin-top: 16rpx; }
+.spec-chip {
+  font-size: 26rpx; color: v-bind('theme.sub');
+  border: 2rpx solid v-bind('theme.divider'); border-radius: 28rpx;
+  padding: 8rpx 28rpx;
+}
+.spec-chip.on {
+  color: v-bind('theme.primaryBtn'); border-color: v-bind('theme.primaryBtn');
+  background: v-bind('theme.primaryLight'); font-weight: 600;
+}
+
+.cart-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  background: v-bind('theme.card'); border-radius: 24rpx;
+  box-shadow: 0 2rpx 8rpx rgba(200, 160, 80, 0.1);
+  padding: 20rpx 28rpx; margin-bottom: 20rpx;
+}
+.cart-price { font-size: 34rpx; font-weight: 700; color: v-bind('theme.income'); }
+.cart-btn {
+  background: v-bind('theme.primaryBtn'); color: #fff;
+  border-radius: 40rpx; font-size: 30rpx; line-height: 76rpx;
+  padding: 0 56rpx; margin: 0;
+}
+.cart-btn::after { border: none; }
 .stars { display: flex; margin-top: 8rpx; }
 .star { color: #e5dfd2; font-size: 30rpx; margin-right: 4rpx; }
 .star.on { color: v-bind('theme.primaryBtn'); }

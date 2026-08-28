@@ -173,6 +173,19 @@ public class DishService {
         categoryRepository.delete(c);
     }
 
+    /** 随机点菜：在售菜单中随机抽 count 道（选择困难症专用）。 */
+    public List<DishView> randomMenu(Long userId, Long kitchenId, Long categoryId, int count) {
+        requireMember(kitchenId, userId);
+        int n = Math.max(1, Math.min(count, 10));
+        List<Dish> menu = dishRepository
+                .findByKitchenIdAndDeletedAndStatusOrderByUpdatedAtDesc(kitchenId, 0, 1)
+                .stream()
+                .filter(d -> categoryId == null || categoryId.equals(d.getCategoryId()))
+                .toList();
+        java.util.Collections.shuffle(menu);
+        return menu.stream().limit(n).map(this::toView).toList();
+    }
+
     // ---------- 公共 ----------
 
     private void apply(Dish dish, Long kitchenId, DishReq req) {
