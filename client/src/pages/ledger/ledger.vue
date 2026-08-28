@@ -10,27 +10,34 @@ const cards = computed(() => [
   { label: '本月支出', value: summary.value.expense, color: theme.expense },
   { label: '本月结余', value: summary.value.balance, color: theme.title },
 ]);
+
+function prevMonth() {
+  uni.showToast({ title: 'M5 接入真实账本', icon: 'none' });
+}
+function nextMonth() {
+  uni.showToast({ title: 'M5 接入真实账本', icon: 'none' });
+}
 </script>
 
 <template>
   <view class="page">
     <view class="month-row">
-      <text class="arrow">◀</text>
+      <text class="arrow" hover-class="press-dim" @tap="prevMonth">‹</text>
       <text class="month">{{ monthLabel }}</text>
-      <text class="arrow">▶</text>
+      <text class="arrow" hover-class="press-dim" @tap="nextMonth">›</text>
     </view>
     <view class="cards">
-      <view v-for="c in cards" :key="c.label" class="card">
+      <view v-for="c in cards" :key="c.label" class="card summary">
         <text class="label">{{ c.label }}</text>
         <text class="value" :style="{ color: c.color }">¥{{ c.value }}</text>
       </view>
     </view>
     <view class="card actions">
-      <text class="add">+ 记一笔</text>
-      <text class="export">导出 Excel</text>
+      <text class="add" hover-class="press-dim">＋ 记一笔</text>
+      <text class="export" hover-class="press-dim">导出 Excel</text>
     </view>
     <view class="card empty">
-      <text class="face">📒</text>
+      <image class="empty-img" src="/static/icons/empty-ledger.png" mode="aspectFit" />
       <text class="tip">本月还没有收支记录</text>
     </view>
   </view>
@@ -38,9 +45,12 @@ const cards = computed(() => [
 
 <style lang="scss" scoped>
 .page { min-height: 100vh; background-color: v-bind('theme.bg'); padding: 24rpx; box-sizing: border-box; }
-.month-row { display: flex; align-items: center; justify-content: center; gap: 48rpx; padding: 16rpx 0 24rpx; }
+.month-row { display: flex; align-items: center; justify-content: center; gap: 64rpx; padding: 16rpx 0 24rpx; }
 .month { font-size: 32rpx; font-weight: 600; color: v-bind('theme.title'); }
-.arrow { color: v-bind('theme.sub'); font-size: 26rpx; }
+.arrow {
+  color: v-bind('theme.title'); font-size: 44rpx; font-weight: 600;
+  padding: 0 16rpx; line-height: 1;
+}
 .cards { display: flex; gap: 16rpx; margin-bottom: 16rpx; }
 .card {
   background: v-bind('theme.card'); border-radius: 24rpx;
@@ -52,7 +62,7 @@ const cards = computed(() => [
 .actions { display: flex; padding: 20rpx 32rpx; gap: 48rpx; margin-bottom: 16rpx; }
 .add { color: v-bind('theme.primaryBtn'); font-size: 28rpx; font-weight: 600; }
 .export { margin-left: auto; color: v-bind('theme.title'); font-size: 28rpx; }
-.empty { padding: 96rpx 0; display: flex; flex-direction: column; align-items: center; gap: 16rpx; }
-.face { font-size: 96rpx; }
+.empty { padding: 90rpx 0; display: flex; flex-direction: column; align-items: center; gap: 20rpx; }
+.empty-img { width: 180rpx; height: 180rpx; }
 .tip { font-size: 26rpx; color: v-bind('theme.sub'); }
 </style>

@@ -51,7 +51,9 @@ async function doLogin(mode: 'login' | 'register') {
 <template>
   <view class="page">
     <view class="logo">
-      <text class="logo-icon">🍳</text>
+      <view class="logo-badge">
+        <image class="logo-img" src="/static/icons/chefhat.png" mode="aspectFit" />
+      </view>
       <text class="title">共享厨房</text>
       <text class="sub">一起做饭，一起吃饭</text>
     </view>
@@ -78,13 +80,13 @@ async function doLogin(mode: 'login' | 'register') {
           placeholder="请输入验证码"
           placeholder-class="ph"
         />
-        <text class="send-btn" :class="{ disabled: !phoneOk() || sending }" @tap="sendCode">
+        <text class="send-btn" :class="{ disabled: !phoneOk() || sending }" hover-class="press-dim" @tap="sendCode">
           {{ sending ? '已发送' : '获取验证码' }}
         </text>
       </view>
       <text class="tip">开发环境无需真实短信，验证码输 1234 即可</text>
-      <button class="btn-main" :disabled="submitting" @tap="doLogin('login')">登录</button>
-      <button class="btn-sub" :disabled="submitting" @tap="doLogin('register')">
+      <button class="btn-main" :disabled="submitting" hover-class="press-sink" @tap="doLogin('login')">登录</button>
+      <button class="btn-sub" :disabled="submitting" hover-class="press-dim" @tap="doLogin('register')">
         新手机号？注册并登录
       </button>
     </view>
@@ -102,7 +104,13 @@ async function doLogin(mode: 'login' | 'register') {
   display: flex; flex-direction: column; align-items: center;
   padding: 96rpx 0 64rpx;
 }
-.logo-icon { font-size: 120rpx; }
+.logo-badge {
+  width: 160rpx; height: 160rpx; border-radius: 40rpx;
+  background: v-bind('theme.primaryLight');
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4rpx 12rpx rgba(200, 160, 80, 0.15);
+}
+.logo-img { width: 96rpx; height: 96rpx; }
 .title { font-size: 44rpx; font-weight: 700; color: v-bind('theme.title'); margin-top: 16rpx; }
 .sub { font-size: 26rpx; color: v-bind('theme.sub'); margin-top: 8rpx; }
 

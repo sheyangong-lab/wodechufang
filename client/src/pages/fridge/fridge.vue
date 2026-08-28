@@ -15,23 +15,25 @@ const chips = computed(() => [
   <view class="page">
     <view class="toolbar">
       <view class="chips">
-        <text v-for="c in chips" :key="c.label" class="chip">
+        <text v-for="c in chips" :key="c.label" class="chip" hover-class="press-dim">
           <text class="dot" :style="{ background: c.color }" />{{ c.label }}
         </text>
       </view>
-      <text class="put-btn">放入食材</text>
+      <text class="put-btn" hover-class="press-bg">放入食材</text>
     </view>
-    <view class="search">
-      <text class="placeholder">🔍 输入食材名称进行搜索</text>
+    <view class="search" hover-class="press-dim">
+      <image class="icon-sm" src="/static/icons/search.png" mode="aspectFit" />
+      <text class="placeholder">输入食材名称进行搜索</text>
       <text class="go">搜索</text>
     </view>
     <view class="body">
       <view class="side">
-        <text class="cat active">全部</text>
-        <text class="cat-manage">⚙️ 类别管理</text>
+        <text class="cat" hover-class="press-dim">全部</text>
+        <text class="cat" hover-class="press-dim">1</text>
+        <text class="cat-manage" hover-class="press-dim">类别管理</text>
       </view>
-      <view class="card item">
-        <text class="icon">🧺</text>
+      <view class="card item" hover-class="press-dim">
+        <image class="item-icon" src="/static/icons/basket.png" mode="aspectFit" />
         <view class="info">
           <view class="row">
             <text class="name">111</text>
@@ -57,9 +59,12 @@ const chips = computed(() => [
   padding: 8rpx 20rpx; font-size: 26rpx; color: v-bind('theme.title');
 }
 .search {
-  display: flex; align-items: center; background: v-bind('theme.card');
+  display: flex; align-items: center; gap: 12rpx;
+  background: v-bind('theme.card');
+  border: 2rpx solid v-bind('theme.divider');
   border-radius: 16rpx; padding: 16rpx 24rpx; margin-bottom: 20rpx;
 }
+.icon-sm { width: 32rpx; height: 32rpx; }
 .placeholder { flex: 1; font-size: 26rpx; color: v-bind('theme.sub'); }
 .go { color: v-bind('theme.primaryBtn'); font-size: 28rpx; font-weight: 600; }
 .body { display: flex; gap: 20rpx; }
@@ -69,7 +74,7 @@ const chips = computed(() => [
   background: v-bind('theme.primaryLight'); border-radius: 12rpx; padding: 12rpx 0;
   text-align: center;
 }
-.cat-manage { font-size: 24rpx; color: v-bind('theme.primaryBtn'); }
+.cat-manage { font-size: 24rpx; color: v-bind('theme.primaryBtn'); text-align: center; }
 .card {
   background: v-bind('theme.card'); border-radius: 24rpx;
   box-shadow: 0 2rpx 8rpx rgba(200, 160, 80, 0.1);
@@ -78,7 +83,7 @@ const chips = computed(() => [
   flex: 1; display: flex; gap: 20rpx; padding: 24rpx;
   border: 2rpx solid v-bind('theme.warning');
 }
-.icon { font-size: 56rpx; }
+.item-icon { width: 88rpx; height: 88rpx; }
 .info { flex: 1; }
 .row { display: flex; justify-content: space-between; margin-bottom: 8rpx; }
 .name { font-size: 30rpx; font-weight: 600; color: v-bind('theme.title'); }

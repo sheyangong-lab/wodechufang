@@ -14,11 +14,12 @@ const active = ref(0);
         :key="t"
         class="tab"
         :class="{ active: active === i }"
+        hover-class="press-dim"
         @tap="active = i"
       >{{ t }}</text>
     </view>
     <view class="card empty">
-      <text class="face">👨‍🍳</text>
+      <image class="empty-img" src="/static/icons/empty-order.png" mode="aspectFit" />
       <text class="tip">还没有订单哦 ~</text>
     </view>
   </view>
@@ -27,7 +28,7 @@ const active = ref(0);
 <style lang="scss" scoped>
 .page { min-height: 100vh; background-color: v-bind('theme.bg'); padding: 24rpx; box-sizing: border-box; }
 .sub-tabs { display: flex; justify-content: center; gap: 96rpx; margin-bottom: 24rpx; }
-.tab { font-size: 30rpx; color: v-bind('theme.sub'); padding-bottom: 12rpx; }
+.tab { font-size: 30rpx; color: v-bind('theme.sub'); padding: 8rpx 12rpx 12rpx; }
 .tab.active {
   color: v-bind('theme.title'); font-weight: 600;
   border-bottom: 6rpx solid v-bind('theme.primary');
@@ -36,7 +37,7 @@ const active = ref(0);
   background: v-bind('theme.card'); border-radius: 24rpx;
   box-shadow: 0 2rpx 8rpx rgba(200, 160, 80, 0.1);
 }
-.empty { padding: 120rpx 0; display: flex; flex-direction: column; align-items: center; gap: 16rpx; }
-.face { font-size: 96rpx; }
+.empty { padding: 110rpx 0; display: flex; flex-direction: column; align-items: center; gap: 20rpx; }
+.empty-img { width: 180rpx; height: 180rpx; }
 .tip { font-size: 26rpx; color: v-bind('theme.sub'); }
 </style>
