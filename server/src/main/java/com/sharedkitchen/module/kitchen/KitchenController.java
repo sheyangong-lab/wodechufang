@@ -54,4 +54,21 @@ public class KitchenController {
         Long userId = (Long) request.getAttribute(JwtAuthFilter.ATTR_USER_ID);
         return ApiResponse.ok(kitchenService.detail(userId, id));
     }
+
+    public record UpdateReq(String name, String announcement) {}
+
+    @org.springframework.web.bind.annotation.PutMapping("/{id}")
+    public ApiResponse<KitchenService.KitchenView> update(
+            HttpServletRequest request, @PathVariable Long id,
+            @RequestBody UpdateReq req) {
+        Long userId = (Long) request.getAttribute(JwtAuthFilter.ATTR_USER_ID);
+        return ApiResponse.ok(kitchenService.update(userId, id, req.name(), req.announcement()));
+    }
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/{id}")
+    public ApiResponse<Void> dissolve(HttpServletRequest request, @PathVariable Long id) {
+        Long userId = (Long) request.getAttribute(JwtAuthFilter.ATTR_USER_ID);
+        kitchenService.dissolve(userId, id);
+        return ApiResponse.ok();
+    }
 }

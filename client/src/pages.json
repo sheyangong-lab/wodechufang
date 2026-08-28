@@ -13,6 +13,10 @@
       "style": { "navigationBarTitleText": "厨房成员", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
     },
     {
+      "path": "pages/profile/manage",
+      "style": { "navigationBarTitleText": "厨房管理", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
       "path": "pages/order/order",
       "style": { "navigationBarTitleText": "订单", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
     },

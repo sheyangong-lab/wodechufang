@@ -121,6 +121,46 @@ public class KitchenService {
         return new KitchenDetail(toView(kitchen, me.getRole(), null), memberViews);
     }
 
+    /** 店长修改厨房信息（名称/公告）。 */
+    @Transactional
+    public KitchenView update(Long userId, Long kitchenId, String name, String announcement) {
+        KitchenMember me = memberRepository.findByKitchenIdAndUserId(kitchenId, userId)
+                .orElseThrow(() -> new BusinessException(403, "你还不是该厨房的成员"));
+        if (!KitchenMember.ROLE_OWNER.equals(me.getRole())) {
+            throw new BusinessException(403, "只有店长可以修改厨房信息");
+        }
+        Kitchen kitchen = kitchenRepository.findById(kitchenId)
+                .orElseThrow(() -> new BusinessException(404, "厨房不存在"));
+        if (name != null && !name.isBlank()) {
+            String trimmed = name.trim();
+            if (trimmed.length() > 20) {
+                throw new BusinessException("厨房名称最多20个字");
+            }
+            kitchen.setName(trimmed);
+        }
+        if (announcement != null) {
+            if (announcement.length() > 100) {
+                throw new BusinessException("公告最多100个字");
+            }
+            kitchen.setAnnouncement(announcement.trim());
+        }
+        kitchenRepository.save(kitchen);
+        return toView(kitchen, me.getRole(), null);
+    }
+
+    /** 店长解散厨房：连同成员关系一并删除。 */
+    @Transactional
+    public void dissolve(Long userId, Long kitchenId) {
+        KitchenMember me = memberRepository.findByKitchenIdAndUserId(kitchenId, userId)
+                .orElseThrow(() -> new BusinessException(403, "你还不是该厨房的成员"));
+        if (!KitchenMember.ROLE_OWNER.equals(me.getRole())) {
+            throw new BusinessException(403, "只有店长可以解散厨房");
+        }
+        List<KitchenMember> members = memberRepository.findByKitchenIdOrderByJoinedAtAsc(kitchenId);
+        memberRepository.deleteAll(members);
+        kitchenRepository.deleteById(kitchenId);
+    }
+
     private KitchenView toView(Kitchen k, String myRole, String ownerNickname) {
         long memberCount = memberRepository.countByKitchenId(k.getId());
         User owner = userRepository.findById(k.getOwnerId()).orElse(null);

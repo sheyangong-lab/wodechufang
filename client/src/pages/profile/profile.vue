@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { theme } from '@/styles/theme';
-import { loadUser, logout } from '@/api/auth';
+import { authApi, loadUser, logout } from '@/api/auth';
 import type { UserView } from '@/api/auth';
 import { onShow } from '@dcloudio/uni-app';
 import { ref } from 'vue';
@@ -12,8 +12,34 @@ const grid = [
 ];
 const notices = ['绑定消息通知', '系统通知', '订单通知', '收到的评论'];
 
+function onGrid(item: string) {
+  if (item === '厨房管理') {
+    uni.navigateTo({ url: '/pages/profile/manage' });
+    return;
+  }
+  uni.showToast({ title: `${item}：后续版本开发`, icon: 'none' });
+}
+
 function goLogin() {
   uni.navigateTo({ url: '/pages/login/login' });
+}
+
+function editNickname() {
+  if (!user.value) return;
+  uni.showModal({
+    title: '修改昵称',
+    editable: true,
+    placeholderText: user.value.nickname,
+    success: (res) => {
+      if (!res.confirm || !res.content || !res.content.trim()) return;
+      authApi.updateNickname(res.content!.trim()).then((u) => {
+        // 同步本地缓存
+        uni.setStorageSync('user', JSON.stringify(u));
+        user.value = u;
+        uni.showToast({ title: '昵称已更新', icon: 'none' });
+      });
+    },
+  });
 }
 
 onShow(() => {
@@ -30,14 +56,14 @@ function onLogout() {
 <template>
   <view class="page">
     <!-- 头部（对照蓝本截图13，暖黄渐变） -->
-    <view class="header" hover-class="press-dim" @tap="user ? undefined : goLogin()">
+    <view class="header" hover-class="press-dim" @tap="user ? editNickname() : goLogin()">
       <view class="user">
         <view class="avatar">
-          <image class="avatar-img" :src="user ? '/static/icons/person.png' : '/static/icons/person.png'" mode="aspectFit" />
+          <image class="avatar-img" src="/static/icons/person.png" mode="aspectFit" />
         </view>
         <view>
           <text class="name">{{ user ? user.nickname : '点击登录' }}</text>
-          <text class="hint">{{ user ? user.phoneMasked + ' ›' : '登录后开启共享厨房 ›' }}</text>
+          <text class="hint">{{ user ? user.phoneMasked + ' · 点此改昵称 ›' : '登录后开启共享厨房 ›' }}</text>
         </view>
       </view>
       <text class="points">{{ user ? user.points.toFixed(2) + ' 积分' : '' }}</text>
@@ -52,7 +78,7 @@ function onLogout() {
     <!-- 功能宫格 -->
     <view class="card grid-wrap">
       <view v-for="(row, i) in grid" :key="i" class="grid-row">
-        <text v-for="item in row" :key="item" class="grid-item" hover-class="press-dim">{{ item }}</text>
+        <text v-for="item in row" :key="item" class="grid-item" hover-class="press-dim" @tap="onGrid(item)">{{ item }}</text>
       </view>
     </view>
 

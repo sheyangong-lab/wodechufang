@@ -241,8 +241,8 @@ function copyCode() {
 
 .bottom-bar {
   position: fixed; left: 24rpx; right: 24rpx;
-  /* 贴近 tabBar：约 30rpx 视觉间隙 */
-  bottom: calc(130rpx + env(safe-area-inset-bottom));
+  /* 几乎贴着 tabBar，仅留防误触的丝缝 */
+  bottom: calc(110rpx + env(safe-area-inset-bottom));
   display: flex; align-items: center; gap: 24rpx;
   background: v-bind('theme.card'); border-radius: 48rpx; padding: 16rpx 32rpx;
   box-shadow: 0 6rpx 20rpx rgba(200, 160, 80, 0.28);

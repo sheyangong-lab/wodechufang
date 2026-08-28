@@ -66,4 +66,8 @@ export const kitchenApi = {
   mine: () => request<KitchenView[]>({ url: '/api/kitchens/mine' }),
   detail: (id: number, silent = false) =>
     request<KitchenDetail>({ url: `/api/kitchens/${id}`, silent }),
+  update: (id: number, data: { name?: string; announcement?: string }) =>
+    request<KitchenView>({ url: `/api/kitchens/${id}`, method: 'PUT', data }),
+  dissolve: (id: number) =>
+    request<void>({ url: `/api/kitchens/${id}`, method: 'DELETE' }),
 };

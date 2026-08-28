@@ -44,4 +44,6 @@ export const authApi = {
   login: (phone: string, smsCode: string) =>
     request<LoginResult>({ url: '/api/auth/login', method: 'POST', data: { phone, smsCode } }),
   me: () => request<UserView>({ url: '/api/me' }),
+  updateNickname: (nickname: string) =>
+    request<UserView>({ url: '/api/me', method: 'PATCH', data: { nickname } }),
 };
