@@ -1,0 +1,20 @@
+# Java
+server/target/
+*.class
+
+# Node / uni-app
+node_modules/
+client/dist/
+client/unpackage/
+admin/dist/
+
+# 本地数据
+server/data/
+*.db
+*.sqlite
+
+# IDE / 系统
+.idea/
+.vscode/
+*.iml
+.DS_Store
