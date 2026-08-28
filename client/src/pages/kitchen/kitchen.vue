@@ -166,10 +166,14 @@ function onAddSelect(key: string) {
   addSheetVisible.value = false;
   if (key === 'manual') {
     uni.navigateTo({ url: '/pages/dish/edit' });
-  } else if (key === 'clone' || key === 'import' || key === 'square') {
-    uni.showToast({ title: 'M8 开发', icon: 'none' });
+  } else if (key === 'square') {
+    uni.navigateTo({ url: '/pages/square/square' });
+  } else if (key === 'clone') {
+    uni.navigateTo({ url: '/pages/square/square' });
+  } else if (key === 'import') {
+    uni.showToast({ title: '快捷导入：外部链接抓取不可控，暂不开发', icon: 'none' });
   } else {
-    uni.showToast({ title: '批量添加为会员功能，M6 开放', icon: 'none' });
+    uni.showToast({ title: '批量添加为会员功能，M6 后开放', icon: 'none' });
   }
 }
 

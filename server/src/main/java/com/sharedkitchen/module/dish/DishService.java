@@ -188,6 +188,60 @@ public class DishService {
         return menu.stream().limit(n).map(this::toView).toList();
     }
 
+    /** 广场：全平台分享到广场的菜谱（任何登录用户可浏览）。 */
+    public List<DishView> listSquare(String keyword) {
+        String kw = keyword == null ? null : keyword.trim();
+        return dishRepository.findByShareSquareAndDeletedAndStatusOrderByUpdatedAtDesc(1, 0, 1)
+                .stream()
+                .filter(d -> kw == null || kw.isEmpty() || d.getName().contains(kw))
+                .limit(50)
+                .map(this::toView)
+                .toList();
+    }
+
+    /** 克隆菜谱：把广场上的菜谱复制一份到自己厨房（校验家人权限与菜品额度）。 */
+    @Transactional
+    public DishView cloneDish(Long userId, Long targetKitchenId, Long sourceDishId) {
+        Dish source = requireDish(sourceDishId);
+        if (source.getShareSquare() != 1 || source.getDeleted() == 1 || source.getStatus() != 1) {
+            throw new BusinessException("该菜谱未分享到广场，无法克隆");
+        }
+        if (source.getKitchenId().equals(targetKitchenId)) {
+            throw new BusinessException("该菜谱已在你的厨房里");
+        }
+        // 源菜谱的分类属于源厨房，克隆到新厨房时不带分类
+        DishReq req = new DishReq(
+                source.getName(),
+                source.getDescription(),
+                source.getImageUrl(),
+                source.getPriceFen(),
+                parseSpecsList(source.getSpecsJson()),
+                null,
+                source.getRecommendStars(),
+                source.getMaterials(),
+                source.getSteps(),
+                source.getServings(),
+                source.getCookMinutes(),
+                source.getDifficulty(),
+                source.getCalories(),
+                false);
+        return create(userId, targetKitchenId, req); // create 内含家人权限与额度校验
+    }
+
+    private List<com.sharedkitchen.module.dish.DishReq.Spec> parseSpecsList(String specsJson) {
+        if (specsJson == null || specsJson.isBlank()) return null;
+        try {
+            com.fasterxml.jackson.databind.JsonNode arr = objectMapper.readTree(specsJson);
+            List<com.sharedkitchen.module.dish.DishReq.Spec> specs = new java.util.ArrayList<>();
+            for (var node : arr) {
+                specs.add(new DishReq.Spec(node.path("name").asText(), node.path("priceFen").asLong()));
+            }
+            return specs;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     // ---------- 公共 ----------
 
     private void apply(Dish dish, Long kitchenId, DishReq req) {

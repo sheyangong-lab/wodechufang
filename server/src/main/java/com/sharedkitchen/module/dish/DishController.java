@@ -88,6 +88,20 @@ public class DishController {
         return ApiResponse.ok(dishService.detail(userId(request), id));
     }
 
+    /** 广场：分享到广场的菜谱池（登录即可浏览）。 */
+    @GetMapping("/square/dishes")
+    public ApiResponse<List<DishView>> square(
+            @RequestParam(required = false) String keyword) {
+        return ApiResponse.ok(dishService.listSquare(keyword));
+    }
+
+    /** 克隆广场菜谱到自己厨房。 */
+    @PostMapping("/kitchens/{kitchenId}/dishes/{dishId}/clone")
+    public ApiResponse<DishView> clone(
+            HttpServletRequest request, @PathVariable Long kitchenId, @PathVariable Long dishId) {
+        return ApiResponse.ok(dishService.cloneDish(userId(request), kitchenId, dishId));
+    }
+
     @PutMapping("/dishes/{id}")
     public ApiResponse<DishView> update(
             HttpServletRequest request, @PathVariable Long id,

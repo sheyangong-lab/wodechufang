@@ -142,4 +142,15 @@ export const dishApi = {
     request<DishView>({ url: `/api/dishes/${id}/status`, method: 'PATCH', data: { status } }),
   recycle: (id: number) => request<void>({ url: `/api/dishes/${id}`, method: 'DELETE' }),
   restore: (id: number) => request<DishView>({ url: `/api/dishes/${id}/restore`, method: 'POST' }),
+
+  /** 广场：分享到广场的菜谱池 */
+  squareList: (keyword?: string) =>
+    request<DishView[]>({
+      url: '/api/square/dishes' + (keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''),
+    }),
+  /** 克隆广场菜谱到自己厨房 */
+  clone: (kitchenId: number, dishId: number) =>
+    request<DishView>({
+      url: `/api/kitchens/${kitchenId}/dishes/${dishId}/clone`, method: 'POST',
+    }),
 };

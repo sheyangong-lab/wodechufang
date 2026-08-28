@@ -35,10 +35,12 @@ public class AdminAuthFilter extends OncePerRequestFilter {
                 return;
             }
             request.setAttribute("adminId", Long.valueOf(subject.substring(6)));
-            chain.doFilter(request, response);
         } catch (Exception e) {
             reject(response, "登录已过期，请重新登录");
+            return;
         }
+        // 校验通过后再放行；下游异常交给全局异常处理器，不能在这里被吞成 401
+        chain.doFilter(request, response);
     }
 
     @Override

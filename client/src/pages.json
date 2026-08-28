@@ -61,6 +61,10 @@
       "style": { "navigationBarTitleText": "记一笔", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
     },
     {
+      "path": "pages/square/square",
+      "style": { "navigationBarTitleText": "广场偷菜", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
       "path": "pages/order/order",
       "style": { "navigationBarTitleText": "订单", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
     },
