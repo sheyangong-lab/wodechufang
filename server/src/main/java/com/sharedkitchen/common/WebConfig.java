@@ -11,6 +11,13 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
+    /** 上传图片的静态映射：/files/** → data/uploads/（与 UploadController 约定一致）。 */
+    @Override
+    public void addResourceHandlers(org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry registry) {
+        registry.addResourceHandler("/files/**")
+                .addResourceLocations("file:./data/uploads/");
+    }
+
     /**
      * CORS 过滤器必须先于 JwtAuthFilter（order 0 < 10）：
      * 一是预检 OPTIONS 到不了 JwtAuthFilter 就被放行，二是 401 等过滤直接写出的响应也带跨点头。

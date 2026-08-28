@@ -17,6 +17,22 @@
       "style": { "navigationBarTitleText": "厨房管理", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
     },
     {
+      "path": "pages/dish/edit",
+      "style": { "navigationBarTitleText": "编辑菜谱", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
+      "path": "pages/dish/detail",
+      "style": { "navigationBarTitleText": "菜谱详情", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
+      "path": "pages/dish/categories",
+      "style": { "navigationBarTitleText": "分类管理", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
+      "path": "pages/dish/recycle",
+      "style": { "navigationBarTitleText": "回收站", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
       "path": "pages/order/order",
       "style": { "navigationBarTitleText": "订单", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
     },

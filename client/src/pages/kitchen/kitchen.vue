@@ -3,13 +3,24 @@ import { theme } from '@/styles/theme';
 import { authApi, loadUser } from '@/api/auth';
 import { kitchenApi, getCurrentKitchenId, loadKitchenCache, setCurrentKitchen } from '@/api/kitchen';
 import type { KitchenDetail } from '@/api/kitchen';
+import { dishApi, fenToYuan, fullUrl } from '@/api/dish';
+import type { CategoryView, DishView } from '@/api/dish';
 import { onShow } from '@dcloudio/uni-app';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 const loggedIn = ref(!!loadUser());
 const hasKitchen = ref(false);
-const detail = ref<KitchenDetail | null>(null);
 const loading = ref(true);
+const detail = ref<KitchenDetail | null>(null);
+
+// 菜单状态
+const mode = ref<'order' | 'manage'>('order');
+const categories = ref<CategoryView[]>([]);
+const dishes = ref<DishView[]>([]);
+const activeCatId = ref<number | null>(null); // null=全部
+const keyword = ref('');
+const searchVisible = ref(false);
+const menuLoading = ref(false);
 
 const guide = [
   '1、点击右侧"分类管理"添加菜谱分类',
@@ -26,16 +37,15 @@ onShow(async () => {
   }
   const id = getCurrentKitchenId();
   if (!id) {
-    // 本地没有记录时，尝试从服务端恢复（换设备场景）
     try {
       const mine = await kitchenApi.mine();
       if (mine.length > 0) {
         setCurrentKitchen(mine[mine.length - 1]);
-        await loadDetail(mine[mine.length - 1].id);
+        await loadKitchen(mine[mine.length - 1].id);
         return;
       }
     } catch {
-      // 未登录 token 失效等场景走 silent 处理
+      // token 失效等
     }
     hasKitchen.value = false;
     loading.value = false;
@@ -43,22 +53,103 @@ onShow(async () => {
   }
   detail.value = loadKitchenCache();
   hasKitchen.value = true;
-  await loadDetail(id);
+  await loadKitchen(id);
 });
 
-async function loadDetail(id: number) {
+async function loadKitchen(id: number) {
   try {
     detail.value = await kitchenApi.detail(id);
     hasKitchen.value = true;
     loading.value = false;
+    await Promise.all([loadCategories(), loadDishes()]);
   } catch {
-    // 403/404：厨房没了或被移出，清掉本地记录
     uni.removeStorageSync('kitchenId');
     uni.removeStorageSync('kitchenCache');
     detail.value = null;
     hasKitchen.value = false;
     loading.value = false;
   }
+}
+
+async function loadCategories() {
+  if (!hasKitchen.value) return;
+  try {
+    categories.value = await dishApi.categories(getCurrentKitchenId()!);
+  } catch {
+    categories.value = [];
+  }
+}
+
+async function loadDishes() {
+  if (!hasKitchen.value) return;
+  menuLoading.value = true;
+  try {
+    dishes.value = await dishApi.list(getCurrentKitchenId()!, {
+      mode: mode.value,
+      categoryId: activeCatId.value,
+      keyword: keyword.value || undefined,
+    });
+  } catch {
+    dishes.value = [];
+  } finally {
+    menuLoading.value = false;
+  }
+}
+
+function setMode(m: 'order' | 'manage') {
+  mode.value = m;
+  loadDishes();
+}
+
+function pickCat(id: number | null) {
+  activeCatId.value = id;
+  if (mode.value === 'order') loadDishes();
+}
+
+function toggleSearch() {
+  searchVisible.value = !searchVisible.value;
+  if (!searchVisible.value && keyword.value) {
+    keyword.value = '';
+    loadDishes();
+  }
+}
+
+function onSearchInput(e: { detail: { value: string } }) {
+  keyword.value = e.detail.value;
+  loadDishes();
+}
+
+function goCategories() {
+  uni.navigateTo({ url: '/pages/dish/categories' });
+}
+
+function goRecycle() {
+  uni.navigateTo({ url: '/pages/dish/recycle' });
+}
+
+function openDish(d: DishView) {
+  uni.navigateTo({
+    url: `/pages/dish/detail?id=${d.id}${mode.value === 'manage' ? '&from=manage' : ''}`,
+  });
+}
+
+function addDish() {
+  uni.showActionSheet({
+    itemList: ['手动添加', '克隆菜谱', '快捷导入', '广场偷菜', '批量添加'],
+    success: ({ tapIndex }) => {
+      if (tapIndex === 0) {
+        uni.navigateTo({ url: '/pages/dish/edit' });
+      } else if (tapIndex === 1) {
+        uni.showToast({ title: '克隆菜谱：M8 开发', icon: 'none' });
+      } else if (tapIndex === 2) {
+        uni.showToast({ title: '快捷导入：M8 开发', icon: 'none' });
+      } else if (tapIndex === 3) {
+        uni.showToast({ title: '广场偷菜：M8 开发', icon: 'none' });
+      } else {
+        uni.showToast({ title: '批量添加为会员功能，M6 开放', icon: 'none' });
+      }
+    },
+  });
 }
 
 function goLogin() {
@@ -82,6 +173,8 @@ function copyCode() {
     success: () => uni.showToast({ title: '厨房码已复制，发给朋友即可加入', icon: 'none' }),
   });
 }
+
+const emptyDishes = computed(() => !menuLoading.value && dishes.value.length === 0);
 </script>
 
 <template>
@@ -102,7 +195,6 @@ function copyCode() {
       <view class="state-btns">
         <button class="btn-main half" hover-class="press-sink" @tap="goBind">创建 / 加入厨房</button>
       </view>
-      <view v-if="loading" class="loading-tip"><text>加载中…</text></view>
     </view>
 
     <!-- 有厨房 -->
@@ -128,23 +220,74 @@ function copyCode() {
       <!-- 点单 / 修改 Tab + 操作 -->
       <view class="toolbar">
         <view class="mode-tabs">
-          <text class="mode active" hover-class="press-dim">点单</text>
-          <text class="mode" hover-class="press-dim">修改</text>
+          <text class="mode" :class="{ active: mode === 'order' }" hover-class="press-dim" @tap="setMode('order')">点单</text>
+          <text class="mode" :class="{ active: mode === 'manage' }" hover-class="press-dim" @tap="setMode('manage')">修改</text>
         </view>
         <view class="actions">
-          <text class="btn-outline" hover-class="press-bg">＋ 添加菜谱</text>
-          <view class="btn-gray" hover-class="press-dim">
+          <text class="btn-outline" hover-class="press-bg" @tap="addDish">＋ 添加菜谱</text>
+          <view class="btn-gray" hover-class="press-dim" @tap="toggleSearch">
             <image class="icon-sm" src="/static/icons/search.png" mode="aspectFit" />
             <text>搜索</text>
           </view>
         </view>
       </view>
 
-      <!-- 菜单空状态（M2 接入菜谱后替换为菜单列表） -->
-      <view class="empty card">
-        <text class="empty-title">菜单还是空的</text>
-        <text v-for="line in guide" :key="line" class="empty-line">{{ line }}</text>
-        <text class="warm-tip">邀请成员：点右上角二维码复制厨房码发给他</text>
+      <!-- 搜索条 -->
+      <view v-if="searchVisible" class="search-bar">
+        <input
+          class="search-input"
+          :value="keyword"
+          placeholder="搜索菜谱名称"
+          placeholder-class="ph"
+          confirm-type="search"
+          @input="onSearchInput"
+        />
+        <text class="search-cancel" hover-class="press-dim" @tap="toggleSearch">取消</text>
+      </view>
+
+      <view class="body">
+        <!-- 分类侧栏 -->
+        <view class="side">
+          <text class="cat" :class="{ active: mode === 'order' && activeCatId === null }" hover-class="press-dim" @tap="pickCat(null)">全部</text>
+          <text
+            v-for="c in categories"
+            :key="c.id"
+            class="cat"
+            :class="{ active: mode === 'order' && activeCatId === c.id }"
+            hover-class="press-dim"
+            @tap="pickCat(c.id)"
+          >{{ c.name }}</text>
+          <text class="cat-manage" hover-class="press-dim" @tap="goCategories">⚙ 分类管理</text>
+          <text v-if="mode === 'manage'" class="cat-manage" hover-class="press-dim" @tap="goRecycle">回收站</text>
+        </view>
+
+        <!-- 菜单列表 -->
+        <view class="menu">
+          <view v-if="menuLoading" class="menu-tip"><text>加载中…</text></view>
+          <view v-else-if="emptyDishes" class="card empty">
+            <image class="empty-img" src="/static/icons/empty-kitchen.png" mode="aspectFit" />
+            <text class="empty-title">{{ mode === 'order' ? '菜单还是空的' : '还没有菜品' }}</text>
+            <text v-for="line in guide" :key="line" class="empty-line">{{ line }}</text>
+            <text class="warm-tip">点右上角二维码复制厨房码，发给成员下单</text>
+          </view>
+          <view v-for="d in dishes" :key="d.id" class="card dish-card" hover-class="press-dim" @tap="openDish(d)">
+            <image v-if="d.imageUrl" class="dish-img" :src="fullUrl(d.imageUrl)" mode="aspectFill" />
+            <view v-else class="dish-img holder">
+              <image class="holder-icon" src="/static/icons/pot.png" mode="aspectFit" />
+            </view>
+            <view class="dish-info">
+              <view class="dish-name-row">
+                <text class="dish-name">{{ d.name }}</text>
+                <text v-if="d.status === 0" class="off-tag">已下架</text>
+              </view>
+              <view v-if="d.recommendStars > 0" class="dish-stars">
+                <text v-for="i in d.recommendStars" :key="i" class="star on">★</text>
+              </view>
+              <text v-if="d.categoryName" class="dish-cat">{{ d.categoryName }}</text>
+              <text class="dish-price">¥{{ fenToYuan(d.priceFen) }}</text>
+            </view>
+          </view>
+        </view>
       </view>
 
       <!-- 底部下单栏（贴近 tabBar） -->
@@ -190,7 +333,6 @@ function copyCode() {
 }
 .btn-main.half { margin-top: 0; }
 .btn-main::after { border: none; }
-.loading-tip { margin-top: 16rpx; font-size: 24rpx; color: v-bind('theme.sub'); }
 
 .kitchen-card { padding: 24rpx; }
 .kitchen-head { display: flex; align-items: center; }
@@ -234,10 +376,70 @@ function copyCode() {
 }
 .icon-sm { width: 30rpx; height: 30rpx; }
 
-.empty { padding: 40rpx 32rpx; display: flex; flex-direction: column; }
-.empty-title { font-size: 30rpx; font-weight: 600; color: v-bind('theme.title'); margin-bottom: 16rpx; }
-.empty-line { font-size: 26rpx; color: v-bind('theme.sub'); line-height: 48rpx; }
-.warm-tip { margin-top: 24rpx; font-size: 26rpx; color: v-bind('theme.primaryBtn'); }
+.search-bar {
+  display: flex; align-items: center; gap: 20rpx;
+  margin-bottom: 20rpx;
+}
+.search-input {
+  flex: 1;
+  background: v-bind('theme.card');
+  border: 2rpx solid v-bind('theme.primary');
+  border-radius: 16rpx;
+  padding: 14rpx 24rpx; font-size: 26rpx; color: v-bind('theme.title');
+}
+.ph { color: v-bind('theme.sub'); }
+.search-cancel { font-size: 26rpx; color: v-bind('theme.sub'); }
+
+.body { display: flex; gap: 20rpx; align-items: flex-start; }
+.side {
+  width: 150rpx; flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 16rpx;
+}
+.cat {
+  font-size: 26rpx; color: v-bind('theme.title');
+  background: v-bind('theme.card'); border-radius: 12rpx; padding: 14rpx 0;
+  text-align: center;
+  box-shadow: 0 2rpx 6rpx rgba(200, 160, 80, 0.08);
+}
+.cat.active { background: v-bind('theme.primaryLight'); color: v-bind('theme.primaryBtn'); font-weight: 600; }
+.cat-manage { font-size: 24rpx; color: v-bind('theme.primaryBtn'); text-align: center; padding: 8rpx 0; }
+
+.menu { flex: 1; min-width: 0; }
+.menu-tip { padding: 60rpx 0; text-align: center; font-size: 24rpx; color: v-bind('theme.sub'); }
+.empty { padding: 40rpx 28rpx; display: flex; flex-direction: column; }
+.empty-img { width: 140rpx; height: 140rpx; align-self: center; margin-bottom: 12rpx; }
+.empty-title { font-size: 28rpx; font-weight: 600; color: v-bind('theme.title'); margin-bottom: 12rpx; text-align: center; }
+.empty-line { font-size: 24rpx; color: v-bind('theme.sub'); line-height: 44rpx; text-align: center; }
+.warm-tip { margin-top: 16rpx; font-size: 24rpx; color: v-bind('theme.primaryBtn'); text-align: center; }
+
+.dish-card {
+  display: flex; gap: 20rpx;
+  padding: 20rpx; margin-bottom: 16rpx;
+}
+.dish-img { width: 140rpx; height: 140rpx; border-radius: 16rpx; flex-shrink: 0; }
+.dish-img.holder {
+  background: v-bind('theme.primaryLight');
+  display: flex; align-items: center; justify-content: center;
+}
+.holder-icon { width: 64rpx; height: 64rpx; opacity: 0.5; }
+.dish-info { flex: 1; min-width: 0; }
+.dish-name-row { display: flex; align-items: center; gap: 12rpx; }
+.dish-name {
+  font-size: 30rpx; font-weight: 600; color: v-bind('theme.title');
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.off-tag {
+  font-size: 20rpx; color: v-bind('theme.sub');
+  border: 2rpx solid v-bind('theme.divider'); border-radius: 8rpx; padding: 2rpx 8rpx;
+  flex-shrink: 0;
+}
+.dish-stars { display: flex; margin-top: 6rpx; }
+.star { color: v-bind('theme.primaryBtn'); font-size: 24rpx; margin-right: 2rpx; }
+.dish-cat {
+  display: inline-block; font-size: 20rpx; color: v-bind('theme.sub');
+  background: #f7f5ef; border-radius: 8rpx; padding: 2rpx 12rpx; margin-top: 8rpx;
+}
+.dish-price { display: block; font-size: 30rpx; font-weight: 700; color: v-bind('theme.income'); margin-top: 10rpx; }
 
 .bottom-bar {
   position: fixed; left: 24rpx; right: 24rpx;
@@ -247,6 +449,7 @@ function copyCode() {
   background: v-bind('theme.card'); border-radius: 48rpx; padding: 16rpx 32rpx;
   box-shadow: 0 6rpx 20rpx rgba(200, 160, 80, 0.28);
   border: 2rpx solid v-bind('theme.divider');
+  z-index: 10;
 }
 .cart-wrap { display: flex; }
 .icon-lg { width: 44rpx; height: 44rpx; }
