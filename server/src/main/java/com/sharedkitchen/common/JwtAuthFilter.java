@@ -22,6 +22,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private static final List<String> WHITELIST = List.of(
             "/api/health",
+            "/api/auth/sms-code",
             "/api/auth/register",
             "/api/auth/login"
     );

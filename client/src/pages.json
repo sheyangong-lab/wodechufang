@@ -19,6 +19,10 @@
     {
       "path": "pages/profile/profile",
       "style": { "navigationBarTitleText": "我", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
+      "path": "pages/login/login",
+      "style": { "navigationBarTitleText": "登录", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
     }
   ],
   "globalStyle": {

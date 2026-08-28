@@ -1,25 +1,44 @@
 <script setup lang="ts">
 import { theme } from '@/styles/theme';
+import { loadUser, logout } from '@/api/auth';
+import type { UserView } from '@/api/auth';
+import { onShow } from '@dcloudio/uni-app';
+import { ref } from 'vue';
 
+const user = ref<UserView | null>(loadUser());
 const grid = [
   ['厨房管理', '任务大厅', '厨房菜篮', '饮食计划', '我的积分'],
   ['数据统计', '新手教程', '提点意见', '平台客服', '更多功能'],
 ];
 const notices = ['绑定消息通知', '系统通知', '订单通知', '收到的评论'];
+
+function goLogin() {
+  uni.navigateTo({ url: '/pages/login/login' });
+}
+
+onShow(() => {
+  user.value = loadUser();
+});
+
+function onLogout() {
+  logout();
+  user.value = null;
+  uni.showToast({ title: '已退出登录', icon: 'none' });
+}
 </script>
 
 <template>
   <view class="page">
     <!-- 头部（对照蓝本截图13，暖黄渐变） -->
     <view class="header">
-      <view class="user">
-        <view class="avatar">🐻</view>
+      <view class="user" @tap="user ? undefined : goLogin()">
+        <view class="avatar">{{ user ? '🐻' : '👤' }}</view>
         <view>
-          <text class="name">用户3242</text>
-          <text class="hint">点击查看个人信息 ›</text>
+          <text class="name">{{ user ? user.nickname : '点击登录' }}</text>
+          <text class="hint">{{ user ? user.phoneMasked + ' ›' : '登录后开启共享厨房 ›' }}</text>
         </view>
       </view>
-      <text class="points">66.00 积分</text>
+      <text class="points">{{ user ? user.points.toFixed(2) + ' 积分' : '' }}</text>
     </view>
 
     <!-- 会员横幅 -->
@@ -40,6 +59,12 @@ const notices = ['绑定消息通知', '系统通知', '订单通知', '收到�
       <view v-for="n in notices" :key="n" class="notice-row">
         <text class="notice">{{ n }}</text>
         <text class="chev">›</text>
+      </view>
+    </view>
+
+    <view v-if="user" class="card notice-wrap">
+      <view class="notice-row" @tap="onLogout">
+        <text class="notice logout">退出登录</text>
       </view>
     </view>
   </view>
@@ -78,5 +103,6 @@ const notices = ['绑定消息通知', '系统通知', '订单通知', '收到�
 .notice-wrap { padding: 8rpx 32rpx; }
 .notice-row { display: flex; align-items: center; justify-content: space-between; padding: 28rpx 0; }
 .notice { font-size: 28rpx; color: v-bind('theme.title'); }
+.logout { color: v-bind('theme.danger'); text-align: center; }
 .chev { color: v-bind('theme.sub'); font-size: 32rpx; }
 </style>
