@@ -19,7 +19,7 @@
 npm install
 ```
 
-> ⚠️ 不要把 Linux 上已装好的 `node_modules` 拷过去——esbuild 等原生二进制跨平台不兼容，必须重新 install。`sass` 已写入 devDependencies，会一起装上。
+> ⚠️ 不要把 Linux 上已装好的 `node_modules` 拷过去——esbuild/rollup 等原生二进制跨平台不兼容（典型报错 `Cannot find module @rollup/rollup-win32-x64-msvc`）。如果已经拷了：删掉 `node_modules` 和 `package-lock.json` 再执行 `npm install` 即可修复。`sass` 已写入 devDependencies，会一起装上。
 
 ## 3. 真机调试 Android（先跑起来再打包）
 
@@ -75,6 +75,8 @@ App 里 `localhost` 指手机自己，**连不到你电脑上的后端**。真�
 
 | 症状 | 原因/解法 |
 |------|-----------|
+| `Cannot find module @rollup/rollup-win32-x64-msvc` | 拷了 Linux 的 `node_modules` 过去。删除 `node_modules` **和** `package-lock.json` 后重新 `npm install`（见第 2 节警告） |
+| 终端里 `npm 不是内部命令` | Windows 没装 Node.js → nodejs.org 装 LTS 版后重开终端 |
 | 编译报编译器版本不匹配 | HBuilderX 版本太旧 → 升级到最新正式版 |
 | 打开项目无 uni-app 菜单 | 打开的目录层级不对，必须是含 `package.json` 的 `client` 层 |
 | 打包排队很久 | 云端高峰正常，10-30 分钟 |
