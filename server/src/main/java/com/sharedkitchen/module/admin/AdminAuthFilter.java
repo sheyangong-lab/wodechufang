@@ -1,35 +1,21 @@
-package com.sharedkitchen.common;
+package com.sharedkitchen.module.admin;
 
+import com.sharedkitchen.common.JwtService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-/**
- * Bearer JWT 认证过滤器：白名单直接放行；其余 /api/** 必须携带有效 token，
- * 校验通过后把 userId 放入 request attribute 供控制器读取。
- */
-@Component
-public class JwtAuthFilter extends OncePerRequestFilter {
-
-    public static final String ATTR_USER_ID = "userId";
-
-    private static final List<String> WHITELIST = List.of(
-            "/api/health",
-            "/api/auth/sms-code",
-            "/api/auth/register",
-            "/api/auth/login"
-    );
+/** /api/admin/** 独立鉴权：要求 admin: 前缀的管理员 token（登录接口除外）。由 WebConfig 注册为 Bean。 */
+public class AdminAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
 
-    public JwtAuthFilter(JwtService jwtService) {
+    public AdminAuthFilter(JwtService jwtService) {
         this.jwtService = jwtService;
     }
 
@@ -39,12 +25,16 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                     FilterChain chain) throws ServletException, IOException {
         String header = request.getHeader("Authorization");
         if (header == null || !header.startsWith("Bearer ")) {
-            reject(response, "请先登录");
+            reject(response);
             return;
         }
         try {
-            Long userId = jwtService.parseUserId(header.substring(7));
-            request.setAttribute(ATTR_USER_ID, userId);
+            String subject = jwtService.parseSubject(header.substring(7));
+            if (subject == null || !subject.startsWith("admin:")) {
+                reject(response, "无后台权限");
+                return;
+            }
+            request.setAttribute("adminId", Long.valueOf(subject.substring(6)));
             chain.doFilter(request, response);
         } catch (Exception e) {
             reject(response, "登录已过期，请重新登录");
@@ -53,11 +43,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String uri = request.getRequestURI();
-        if (uri.startsWith("/api/admin/")) {
-            return true; // 后台接口由 AdminAuthFilter 独立鉴权
-        }
-        return WHITELIST.contains(uri);
+        return "/api/admin/login".equals(request.getRequestURI());
+    }
+
+    private void reject(HttpServletResponse response) throws IOException {
+        reject(response, "请先登录后台");
     }
 
     private void reject(HttpServletResponse response, String message) throws IOException {

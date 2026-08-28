@@ -33,10 +33,27 @@ public class JwtService {
                 .compact();
     }
 
+    /** 后台管理员 token：subject 带 admin: 前缀。 */
+    public String issueAdmin(Long adminId) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .subject("admin:" + adminId)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plus(ttl)))
+                .signWith(key)
+                .compact();
+    }
+
     /** 解析并校验签名与有效期；失败抛 io.jsonwebtoken.JwtException。 */
     public Long parseUserId(String token) {
         Claims claims = Jwts.parser().verifyWith(key).build()
                 .parseSignedClaims(token).getPayload();
         return Long.valueOf(claims.getSubject());
+    }
+
+    /** 解析 subject 原文（用户为数字串，管理员为 admin:{id}）；失败抛 JwtException。 */
+    public String parseSubject(String token) {
+        return Jwts.parser().verifyWith(key).build()
+                .parseSignedClaims(token).getPayload().getSubject();
     }
 }
