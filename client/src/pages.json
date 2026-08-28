@@ -5,6 +5,14 @@
       "style": { "navigationBarTitleText": "厨房", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
     },
     {
+      "path": "pages/kitchen/bind",
+      "style": { "navigationBarTitleText": "创建/加入厨房", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
+      "path": "pages/kitchen/members",
+      "style": { "navigationBarTitleText": "厨房成员", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
       "path": "pages/order/order",
       "style": { "navigationBarTitleText": "订单", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
     },
