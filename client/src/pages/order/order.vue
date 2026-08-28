@@ -10,7 +10,7 @@ import ActionSheet from '@/components/action-sheet.vue';
 import CalendarPicker from '@/components/calendar-picker.vue';
 
 const kitchenId = ref<number | null>(getCurrentKitchenId());
-const isOwner = ref(false);
+const canManage = ref(false);
 const tab = ref<'received' | 'mine'>('received');
 const orders = ref<OrderView[]>([]);
 const loading = ref(true);
@@ -35,7 +35,8 @@ const announcement = computed(() => loadKitchenCache()?.announcement || '');
 onShow(() => {
   kitchenId.value = getCurrentKitchenId();
   const cache = loadKitchenCache();
-  isOwner.value = cache?.myRole === 'OWNER';
+  // 店长和家人都有订单处理权（情侣/家庭模式）
+  canManage.value = ['OWNER', 'MEMBER'].includes(cache?.myRole || '');
   load();
 });
 
@@ -164,7 +165,7 @@ function act(o: OrderView, action: 'complete' | 'refund-request' | 'refund-appro
       </view>
 
       <!-- 操作区 -->
-      <view class="ops" v-if="tab === 'received' && isOwner && (o.status === 'PENDING' || o.status === 'REFUND_REQUESTED')">
+      <view class="ops" v-if="tab === 'received' && canManage && (o.status === 'PENDING' || o.status === 'REFUND_REQUESTED')">
         <text
           v-if="o.status === 'REFUND_REQUESTED'"
           class="op"

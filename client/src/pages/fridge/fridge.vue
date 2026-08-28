@@ -1,92 +1,353 @@
 <script setup lang="ts">
 import { theme } from '@/styles/theme';
+import { fridgeApi, expiryText, UNIT_LABELS } from '@/api/fridge';
+import type { FridgeItemView, FridgeCategoryView, FridgeSummary } from '@/api/fridge';
+import { getCurrentKitchenId, loadKitchenCache } from '@/api/kitchen';
+import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
+import InputDialog from '@/components/input-dialog.vue';
 
-// 演示数据：M4-T2 接真实食材
-const states = ref({ fresh: 0, expiring: 1, expired: 0 });
-const chips = computed(() => [
-  { label: `新鲜(${states.value.fresh})`, color: theme.success },
-  { label: `快过期(${states.value.expiring})`, color: theme.warning },
-  { label: `已过期(${states.value.expired})`, color: theme.danger },
+const kitchenId = ref<number | null>(getCurrentKitchenId());
+const canManage = computed(() =>
+  ['OWNER', 'MEMBER'].includes(loadKitchenCache()?.myRole || '')
+);
+
+const summary = ref<FridgeSummary>({ fresh: 0, expiring: 0, expired: 0 });
+const stateFilter = ref<'all' | 'fresh' | 'expiring' | 'expired'>('all');
+const categories = ref<FridgeCategoryView[]>([]);
+const activeCatId = ref<number | null>(null);
+const keyword = ref('');
+const searchVisible = ref(false);
+const items = ref<FridgeItemView[]>([]);
+const loading = ref(true);
+const unread = ref(0);
+const catDialogVisible = ref(false);
+
+const stateDefs = computed(() => [
+  { key: 'fresh' as const, label: `新鲜(${summary.value.fresh})`, color: theme.success },
+  { key: 'expiring' as const, label: `快过期(${summary.value.expiring})`, color: theme.warning },
+  { key: 'expired' as const, label: `已过期(${summary.value.expired})`, color: theme.danger },
 ]);
+
+onShow(() => {
+  kitchenId.value = getCurrentKitchenId();
+  if (!kitchenId.value) return;
+  load();
+});
+
+async function load() {
+  if (!kitchenId.value) return;
+  loading.value = true;
+  try {
+    const [sum, cats, list, unreadCount] = await Promise.all([
+      fridgeApi.summary(kitchenId.value),
+      fridgeApi.categories(kitchenId.value),
+      fridgeApi.list(kitchenId.value, {
+        state: stateFilter.value,
+        categoryId: activeCatId.value,
+        keyword: keyword.value || undefined,
+      }),
+      fridgeApi.unreadCount(kitchenId.value).catch(() => 0),
+    ]);
+    summary.value = sum;
+    categories.value = cats;
+    items.value = list;
+    unread.value = unreadCount;
+  } catch {
+    items.value = [];
+  } finally {
+    loading.value = false;
+  }
+}
+
+function setState(s: 'all' | 'fresh' | 'expiring' | 'expired') {
+  stateFilter.value = s;
+  load();
+}
+
+function pickCat(id: number | null) {
+  activeCatId.value = id;
+  load();
+}
+
+function toggleSearch() {
+  searchVisible.value = !searchVisible.value;
+  if (!searchVisible.value && keyword.value) {
+    keyword.value = '';
+    load();
+  }
+}
+
+function onSearch(e: { detail: { value: string } }) {
+  keyword.value = e.detail.value;
+  load();
+}
+
+function goAdd() {
+  uni.navigateTo({ url: '/pages/fridge/add' });
+}
+
+function goCategories() {
+  uni.navigateTo({ url: '/pages/fridge/categories' });
+}
+
+function goNotice() {
+  uni.navigateTo({ url: '/pages/fridge/notice' });
+}
+
+function goMatch(item: FridgeItemView) {
+  uni.navigateTo({ url: `/pages/fridge/match?name=${encodeURIComponent(item.name)}` });
+}
+
+function checkNow() {
+  if (!kitchenId.value) return;
+  fridgeApi.checkExpiry(kitchenId.value).then((n) => {
+    uni.showToast({
+      title: n > 0 ? `发现 ${n} 种食材需要处理，已生成提醒` : '没有需要处理的食材',
+      icon: 'none',
+    });
+    load();
+  });
+}
+
+function clearAll() {
+  if (!kitchenId.value) return;
+  uni.showModal({
+    title: '清仓',
+    content: stateFilter.value === 'expired'
+      ? '清空所有已过期食材？'
+      : '确定清空当前列表的全部食材？',
+    confirmColor: '#E05B4E',
+    success: (res) => {
+      if (!res.confirm) return;
+      fridgeApi
+        .clear(kitchenId.value!, items.value.map((i) => i.id))
+        .then((n) => {
+          uni.showToast({ title: `已清仓 ${n} 种食材`, icon: 'none' });
+          load();
+        });
+    },
+  });
+}
+
+function onAddCategory(name: string) {
+  catDialogVisible.value = false;
+  fridgeApi.createCategory(kitchenId.value!, name).then(() => load());
+}
+
+function tipSync() {
+  uni.showToast({ title: '多设备同步：后续版本', icon: 'none' });
+}
+
+function tipMatch() {
+  uni.showToast({ title: '点食材卡片上的「匹配菜谱」即可', icon: 'none' });
+}
 </script>
 
 <template>
   <view class="page">
-    <view class="toolbar">
-      <view class="chips">
-        <text v-for="c in chips" :key="c.label" class="chip" hover-class="press-dim">
-          <text class="dot" :style="{ background: c.color }" />{{ c.label }}
-        </text>
-      </view>
-      <text class="put-btn" hover-class="press-bg">放入食材</text>
-    </view>
-    <view class="search" hover-class="press-dim">
-      <image class="icon-sm" src="/static/icons/search.png" mode="aspectFit" />
-      <text class="placeholder">输入食材名称进行搜索</text>
-      <text class="go">搜索</text>
-    </view>
-    <view class="body">
-      <view class="side">
-        <text class="cat" hover-class="press-dim">全部</text>
-        <text class="cat" hover-class="press-dim">1</text>
-        <text class="cat-manage" hover-class="press-dim">类别管理</text>
-      </view>
-      <view class="card item" hover-class="press-dim">
-        <image class="item-icon" src="/static/icons/basket.png" mode="aspectFit" />
-        <view class="info">
-          <view class="row">
-            <text class="name">111</text>
-            <text class="expiring">1天后过期</text>
+    <template v-if="canManage">
+      <!-- 状态筛选（对照蓝本截图15） -->
+      <view class="toolbar">
+        <view class="chips">
+          <text
+            v-for="s in stateDefs"
+            :key="s.key"
+            class="chip"
+            :class="{ on: stateFilter === s.key }"
+            hover-class="press-dim"
+            @tap="setState(s.key)"
+          >
+            <text class="dot" :style="{ background: s.color }" />{{ s.label }}
+          </text>
+        </view>
+        <view class="head-btns">
+          <view class="notice-btn" hover-class="press-dim" @tap="goNotice">
+            <image class="icon-sm" src="/static/icons/receipt.png" mode="aspectFit" />
+            <text v-if="unread > 0" class="badge">{{ unread }}</text>
           </view>
-          <text class="line">剩余数量：27272</text>
-          <text class="line">注：快过期了3</text>
-          <text class="line">产自：2026-08-28　保质期：1天</text>
+          <text class="put-btn" hover-class="press-bg" @tap="goAdd">放入食材</text>
         </view>
       </view>
+
+      <!-- 搜索 -->
+      <view class="search">
+        <image class="icon-sm" src="/static/icons/search.png" mode="aspectFit" />
+        <input
+          v-if="searchVisible"
+          class="search-input"
+          :value="keyword"
+          placeholder="输入食材名称"
+          placeholder-class="ph"
+          @input="onSearch"
+        />
+        <text v-else class="placeholder" hover-class="press-dim" @tap="searchVisible = true">输入食材名称进行搜索</text>
+        <text v-if="searchVisible" class="cancel" hover-class="press-dim" @tap="toggleSearch">取消</text>
+      </view>
+
+      <view class="body">
+        <!-- 类别侧栏 -->
+        <view class="side">
+          <text
+            class="cat"
+            :class="{ active: activeCatId === null }"
+            hover-class="press-dim"
+            @tap="pickCat(null)"
+          >全部</text>
+          <text
+            v-for="c in categories"
+            :key="c.id"
+            class="cat"
+            :class="{ active: activeCatId === c.id }"
+            hover-class="press-dim"
+            @tap="pickCat(c.id)"
+          >{{ c.name }}</text>
+          <text class="cat-manage" hover-class="press-dim" @tap="goCategories">类别管理</text>
+        </view>
+
+        <!-- 食材列表 -->
+        <view class="list">
+          <view v-if="loading" class="list-tip"><text>加载中…</text></view>
+          <view v-else-if="items.length === 0" class="card empty">
+            <image class="empty-img" src="/static/icons/basket.png" mode="aspectFit" />
+            <text class="empty-tip">冰箱里空空的，放点食材吧</text>
+          </view>
+          <view
+            v-for="i in items"
+            :key="i.id"
+            class="card item"
+            :class="{ warning: i.state === 'expiring', danger: i.state === 'expired' }"
+          >
+            <view class="item-head">
+              <text class="name">{{ i.name }}</text>
+              <text class="expire" :class="i.state">{{ expiryText(i) }}</text>
+            </view>
+            <text class="line">剩余数量：{{ i.quantity || '未填' }}</text>
+            <text v-if="i.remark" class="line">注：{{ i.remark }}</text>
+            <view class="item-foot">
+              <text class="meta">产自：{{ i.producedDate || '—' }}　保质期：{{ i.shelfLifeValue }}{{ UNIT_LABELS[i.shelfLifeUnit] }}</text>
+              <text class="match" hover-class="press-dim" @tap="goMatch(i)">匹配菜谱</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 底部操作栏 -->
+      <view class="bottom-ops">
+        <text class="op" hover-class="press-dim" @tap="checkNow">临期通知</text>
+        <text class="op" hover-class="press-dim" @tap="tipSync">同步</text>
+        <text class="op danger" hover-class="press-dim" @tap="clearAll">清仓</text>
+        <text class="op" hover-class="press-dim" @tap="catDialogVisible = true">修改类别</text>
+        <text class="op" hover-class="press-dim" @tap="tipMatch">匹配菜谱</text>
+      </view>
+    </template>
+
+    <!-- 顾客视角 -->
+    <view v-else class="card empty big">
+      <image class="empty-img" src="/static/icons/basket.png" mode="aspectFit" />
+      <text class="empty-tip">食材冰箱仅店长和管家可见</text>
     </view>
+
+    <InputDialog
+      :visible="catDialogVisible"
+      title="快速添加类别"
+      placeholder="类别名称"
+      :maxlength="10"
+      @confirm="onAddCategory"
+      @close="catDialogVisible = false"
+    />
   </view>
 </template>
 
 <style lang="scss" scoped>
-.page { min-height: 100vh; background-color: v-bind('theme.bg'); padding: 24rpx; box-sizing: border-box; }
+.page {
+  min-height: 100vh;
+  background-color: v-bind('theme.bg');
+  padding: 24rpx;
+  padding-bottom: 160rpx;
+  box-sizing: border-box;
+}
+.card {
+  background: v-bind('theme.card');
+  border-radius: 24rpx;
+  box-shadow: 0 2rpx 8rpx rgba(200, 160, 80, 0.1);
+}
 .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20rpx; }
-.chips { display: flex; gap: 20rpx; }
-.chip { font-size: 24rpx; color: v-bind('theme.title'); }
-.dot { display: inline-block; width: 16rpx; height: 16rpx; border-radius: 50%; margin-right: 6rpx; }
+.chips { display: flex; gap: 18rpx; }
+.chip { font-size: 24rpx; color: v-bind('theme.title'); padding: 6rpx 4rpx; }
+.chip.on { font-weight: 700; }
+.dot { display: inline-block; width: 14rpx; height: 14rpx; border-radius: 50%; margin-right: 6rpx; }
+.head-btns { display: flex; align-items: center; gap: 16rpx; }
+.notice-btn { position: relative; display: flex; }
+.icon-sm { width: 36rpx; height: 36rpx; }
+.badge {
+  position: absolute; top: -10rpx; right: -14rpx;
+  min-width: 28rpx; height: 28rpx; border-radius: 14rpx;
+  background: v-bind('theme.danger'); color: #fff;
+  font-size: 18rpx; text-align: center; line-height: 28rpx;
+}
 .put-btn {
   border: 2rpx solid v-bind('theme.title'); border-radius: 12rpx;
   padding: 8rpx 20rpx; font-size: 26rpx; color: v-bind('theme.title');
 }
+
 .search {
   display: flex; align-items: center; gap: 12rpx;
   background: v-bind('theme.card');
   border: 2rpx solid v-bind('theme.divider');
-  border-radius: 16rpx; padding: 16rpx 24rpx; margin-bottom: 20rpx;
+  border-radius: 16rpx; padding: 14rpx 24rpx; margin-bottom: 20rpx;
 }
-.icon-sm { width: 32rpx; height: 32rpx; }
+.search-input { flex: 1; font-size: 26rpx; color: v-bind('theme.title'); }
 .placeholder { flex: 1; font-size: 26rpx; color: v-bind('theme.sub'); }
-.go { color: v-bind('theme.primaryBtn'); font-size: 28rpx; font-weight: 600; }
-.body { display: flex; gap: 20rpx; }
-.side { width: 160rpx; display: flex; flex-direction: column; gap: 24rpx; }
+.cancel { font-size: 26rpx; color: v-bind('theme.sub'); }
+.ph { color: v-bind('theme.sub'); }
+
+.body { display: flex; gap: 20rpx; align-items: flex-start; }
+.side { width: 140rpx; flex-shrink: 0; display: flex; flex-direction: column; gap: 14rpx; }
 .cat {
-  font-size: 28rpx; color: v-bind('theme.title');
-  background: v-bind('theme.primaryLight'); border-radius: 12rpx; padding: 12rpx 0;
+  font-size: 26rpx; color: v-bind('theme.title');
+  background: v-bind('theme.card'); border-radius: 12rpx; padding: 14rpx 0;
   text-align: center;
+  box-shadow: 0 2rpx 6rpx rgba(200, 160, 80, 0.08);
 }
-.cat-manage { font-size: 24rpx; color: v-bind('theme.primaryBtn'); text-align: center; }
-.card {
-  background: v-bind('theme.card'); border-radius: 24rpx;
-  box-shadow: 0 2rpx 8rpx rgba(200, 160, 80, 0.1);
-}
-.item {
-  flex: 1; display: flex; gap: 20rpx; padding: 24rpx;
-  border: 2rpx solid v-bind('theme.warning');
-}
-.item-icon { width: 88rpx; height: 88rpx; }
-.info { flex: 1; }
-.row { display: flex; justify-content: space-between; margin-bottom: 8rpx; }
+.cat.active { background: v-bind('theme.primaryLight'); color: v-bind('theme.primaryBtn'); font-weight: 600; }
+.cat-manage { font-size: 24rpx; color: v-bind('theme.primaryBtn'); text-align: center; padding: 6rpx 0; }
+
+.list { flex: 1; min-width: 0; }
+.list-tip { padding: 40rpx 0; text-align: center; font-size: 24rpx; color: v-bind('theme.sub'); }
+.empty { padding: 70rpx 0; display: flex; flex-direction: column; align-items: center; gap: 14rpx; }
+.empty.big { margin-top: 20vh; padding: 70rpx 0; }
+.empty-img { width: 150rpx; height: 150rpx; }
+.empty-tip { font-size: 26rpx; color: v-bind('theme.sub'); }
+
+.item { padding: 22rpx 26rpx; margin-bottom: 16rpx; border: 2rpx solid v-bind('theme.divider'); }
+.item.warning { border-color: v-bind('theme.warning'); background: #fffcf2; }
+.item.danger { border-color: v-bind('theme.danger'); background: #fff5f3; }
+.item-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8rpx; }
 .name { font-size: 30rpx; font-weight: 600; color: v-bind('theme.title'); }
-.expiring { font-size: 24rpx; color: v-bind('theme.warning'); }
-.line { display: block; font-size: 24rpx; color: v-bind('theme.sub'); line-height: 40rpx; }
+.expire { font-size: 24rpx; }
+.expire.fresh { color: v-bind('theme.success'); }
+.expire.expiring { color: v-bind('theme.warning'); }
+.expire.expired { color: v-bind('theme.danger'); }
+.line { display: block; font-size: 24rpx; color: v-bind('theme.sub'); line-height: 38rpx; }
+.item-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 12rpx;
+}
+.meta { font-size: 22rpx; color: v-bind('theme.sub'); }
+.match { font-size: 24rpx; color: v-bind('theme.primaryBtn'); font-weight: 600; }
+
+.bottom-ops {
+  position: fixed; left: 0; right: 0;
+  bottom: calc(100rpx + env(safe-area-inset-bottom));
+  display: flex;
+  background: v-bind('theme.card');
+  padding: 18rpx 12rpx;
+  box-shadow: 0 -2rpx 12rpx rgba(200, 160, 80, 0.12);
+}
+.op {
+  flex: 1; text-align: center; font-size: 26rpx; color: v-bind('theme.title');
+  padding: 8rpx 0;
+}
+.op.danger { color: v-bind('theme.danger'); }
 </style>

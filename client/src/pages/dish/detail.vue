@@ -102,7 +102,7 @@ function fmtTime(iso: string) {
           <text v-if="dish.servings" class="meta-item">{{ dish.servings }}</text>
           <text v-if="dish.cookMinutes" class="meta-item">{{ dish.cookMinutes }}分钟</text>
           <text v-if="dish.difficulty" class="meta-item">{{ dish.difficulty }}</text>
-          <text v-if="dish.calories" class="meta-item">{{ dish.calories }}kcal</text>
+          <text v-if="dish.calories" class="meta-item">{{ dish.calories }}</text>
         </view>
         <text class="time">更新于 {{ fmtTime(dish.updatedAt) }}</text>
       </view>

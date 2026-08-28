@@ -1,19 +1,12 @@
 <script setup lang="ts">
 import { theme } from '@/styles/theme';
 import { kitchenApi, ROLE_LABELS } from '@/api/kitchen';
-import type { KitchenDetail, MemberView } from '@/api/kitchen';
+import type { KitchenDetail } from '@/api/kitchen';
 import { onLoad } from '@dcloudio/uni-app';
 import { ref } from 'vue';
-import ActionSheet from '@/components/action-sheet.vue';
 
 const detail = ref<KitchenDetail | null>(null);
 const kitchenId = ref<number | null>(null);
-const roleSheetVisible = ref(false);
-const roleTarget = ref<MemberView | null>(null);
-const roleItems = [
-  { key: 'MEMBER', title: '设为管家', desc: '可以加菜谱、处理订单，和你共同管理' },
-  { key: 'CUSTOMER', title: '设为顾客', desc: '只能看菜单和点单' },
-];
 
 onLoad((query) => {
   kitchenId.value = query && query.id ? Number(query.id) : null;
@@ -29,28 +22,8 @@ async function refresh() {
   }
 }
 
-function isOwner(m: MemberView) {
+function isOwner(m: { role: string }) {
   return m.role === 'OWNER';
-}
-
-function canManage() {
-  return detail.value?.kitchen.myRole === 'OWNER';
-}
-
-function openRoleSheet(m: MemberView) {
-  if (!canManage() || isOwner(m)) return;
-  roleTarget.value = m;
-  roleSheetVisible.value = true;
-}
-
-function onRolePick(key: string) {
-  roleSheetVisible.value = false;
-  const target = roleTarget.value;
-  if (!target || key === target.role) return;
-  kitchenApi.setMemberRole(kitchenId.value!, target.userId, key as 'MEMBER' | 'CUSTOMER').then(() => {
-    uni.showToast({ title: `已将「${target.nickname}」设为${ROLE_LABELS[key]}`, icon: 'none' });
-    refresh();
-  });
 }
 
 function fmtTime(iso: string) {
@@ -72,12 +45,6 @@ function fmtTime(iso: string) {
           </view>
           <text class="time">{{ fmtTime(m.joinedAt) }} 加入厨房</text>
         </view>
-        <text
-          v-if="canManage() && !isOwner(m)"
-          class="perm-btn"
-          hover-class="press-dim"
-          @tap="openRoleSheet(m)"
-        >权限</text>
       </view>
       <view class="count">
         <text class="count-text">共{{ detail.members.length }}个成员</text>
@@ -85,19 +52,11 @@ function fmtTime(iso: string) {
     </view>
 
     <view v-if="detail" class="perm-legend card">
-      <text class="legend-title">权限说明</text>
-      <text class="legend-line">店长：全部权限，含解散厨房、修改成员权限</text>
-      <text class="legend-line">管家：可以加菜谱、处理订单（适合另一半）</text>
-      <text class="legend-line">顾客：只能看菜单和点单</text>
+      <text class="legend-title">角色说明</text>
+      <text class="legend-line">店长：厨房的主账号，拥有全部权限</text>
+      <text class="legend-line">家人：可以加菜谱、点单、处理订单，共同经营</text>
+      <text class="legend-line">凭厨房码加入的成员自动成为家人</text>
     </view>
-
-    <!-- 权限选择弹层 -->
-    <ActionSheet
-      :visible="roleSheetVisible"
-      :items="roleItems"
-      @select="onRolePick"
-      @close="roleSheetVisible = false"
-    />
   </view>
 </template>
 
@@ -138,11 +97,6 @@ function fmtTime(iso: string) {
   border-color: v-bind('theme.primaryBtn');
 }
 .time { font-size: 24rpx; color: v-bind('theme.sub'); }
-.perm-btn {
-  font-size: 26rpx; color: v-bind('theme.primaryBtn');
-  border: 2rpx solid v-bind('theme.primaryBtn'); border-radius: 24rpx;
-  padding: 6rpx 20rpx;
-}
 .count { padding: 24rpx 0; text-align: center; }
 .count-text { font-size: 24rpx; color: v-bind('theme.sub'); }
 

@@ -4,4 +4,4 @@
  * - 真机调试：改成电脑的局域网 IP（Linux 上 `ip addr | grep "inet 192"` 查询），手机与电脑需同一 Wi-Fi
  * - 正式部署：改成服务器域名/IP
  */
-export const API_BASE = 'http://192.168.1.187:8080';
+export const API_BASE = 'http://192.168.1.111:8080';

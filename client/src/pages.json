@@ -41,6 +41,22 @@
       "style": { "navigationBarTitleText": "今天吃什么？", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
     },
     {
+      "path": "pages/fridge/add",
+      "style": { "navigationBarTitleText": "放入食材", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
+      "path": "pages/fridge/categories",
+      "style": { "navigationBarTitleText": "类别管理", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
+      "path": "pages/fridge/match",
+      "style": { "navigationBarTitleText": "匹配菜谱", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
+      "path": "pages/fridge/notice",
+      "style": { "navigationBarTitleText": "临期通知", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
       "path": "pages/order/order",
       "style": { "navigationBarTitleText": "订单", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
     },

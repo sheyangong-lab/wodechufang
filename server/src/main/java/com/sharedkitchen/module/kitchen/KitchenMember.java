@@ -7,14 +7,13 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-/** 厨房成员：role = OWNER(店长) / MEMBER(成员) / CUSTOMER(顾客)。 */
+/** 厨房成员：情侣/家庭模式，role = OWNER(店长) / MEMBER(家人)。 */
 @Entity
 @Table(name = "kitchen_members")
 public class KitchenMember {
 
     public static final String ROLE_OWNER = "OWNER";
     public static final String ROLE_MEMBER = "MEMBER";
-    public static final String ROLE_CUSTOMER = "CUSTOMER";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
