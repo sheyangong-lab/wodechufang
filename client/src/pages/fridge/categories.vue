@@ -2,7 +2,7 @@
 import { theme } from '@/styles/theme';
 import { fridgeApi } from '@/api/fridge';
 import type { FridgeCategoryView } from '@/api/fridge';
-import { getCurrentKitchenId } from '@/api/kitchen';
+import { getCurrentKitchenId, ensureKitchenId } from '@/api/kitchen';
 import { onShow } from '@dcloudio/uni-app';
 import { ref } from 'vue';
 import InputDialog from '@/components/input-dialog.vue';
@@ -11,7 +11,10 @@ const kitchenId = ref<number | null>(getCurrentKitchenId());
 const categories = ref<FridgeCategoryView[]>([]);
 const addDialogVisible = ref(false);
 
-onShow(load);
+onShow(async () => {
+  kitchenId.value = await ensureKitchenId();
+  load();
+});
 
 async function load() {
   if (!kitchenId.value) return;

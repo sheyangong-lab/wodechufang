@@ -2,7 +2,8 @@
 import { theme } from '@/styles/theme';
 import { fridgeApi, UNIT_LABELS } from '@/api/fridge';
 import type { FridgeCategoryView } from '@/api/fridge';
-import { getCurrentKitchenId } from '@/api/kitchen';
+import { ensureKitchenId, getCurrentKitchenId } from '@/api/kitchen';
+import { onLoad } from '@dcloudio/uni-app';
 import { ref } from 'vue';
 
 interface Draft {
@@ -31,6 +32,11 @@ function newDraft(): Draft {
     remark: '',
   };
 }
+
+onLoad(async () => {
+  kitchenId.value = await ensureKitchenId();
+  loadCategories();
+});
 
 function loadCategories() {
   if (!kitchenId.value) return;

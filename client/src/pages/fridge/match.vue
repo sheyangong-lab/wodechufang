@@ -3,27 +3,33 @@ import { theme } from '@/styles/theme';
 import { fridgeApi } from '@/api/fridge';
 import type { MatchedDish } from '@/api/fridge';
 import { fenToYuan, fullUrl } from '@/api/dish';
-import { getCurrentKitchenId } from '@/api/kitchen';
+import { ensureKitchenId, getCurrentKitchenId } from '@/api/kitchen';
 import { onLoad } from '@dcloudio/uni-app';
 import { ref } from 'vue';
 
 const ingredient = ref('');
 const dishes = ref<MatchedDish[]>([]);
 const loaded = ref(false);
+const kitchenId = ref<number | null>(null);
 
-onLoad((query) => {
+onLoad(async (query) => {
   ingredient.value = (query && query.name) || '';
+  kitchenId.value = await ensureKitchenId();
   search();
 });
 
 function search() {
-  if (!kitchenId.value || !ingredient.value.trim()) return;
+  if (!kitchenId.value || !ingredient.value.trim()) {
+    loaded.value = true;
+    return;
+  }
   fridgeApi
     .match(kitchenId.value, { ingredient: ingredient.value.trim() })
     .then((list) => {
       dishes.value = list;
       loaded.value = true;
-    });
+    })
+    .catch(() => (loaded.value = true));
 }
 
 function openDish(id: number) {

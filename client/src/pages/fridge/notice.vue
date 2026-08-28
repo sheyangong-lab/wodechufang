@@ -2,14 +2,17 @@
 import { theme } from '@/styles/theme';
 import { fridgeApi } from '@/api/fridge';
 import type { NotificationView } from '@/api/fridge';
-import { getCurrentKitchenId } from '@/api/kitchen';
+import { ensureKitchenId, getCurrentKitchenId } from '@/api/kitchen';
 import { onShow } from '@dcloudio/uni-app';
 import { ref } from 'vue';
 
 const kitchenId = ref<number | null>(getCurrentKitchenId());
 const notices = ref<NotificationView[]>([]);
 
-onShow(load);
+onShow(async () => {
+  kitchenId.value = await ensureKitchenId();
+  load();
+});
 
 async function load() {
   if (!kitchenId.value) return;

@@ -75,6 +75,25 @@ export function loadKitchenCache(): KitchenView | null {
   }
 }
 
+/**
+ * 子页面冷启动兜底：本地无 kitchenId 时从服务端恢复（换设备/清存储场景）。
+ * 所有厨房子页面 onLoad 时都应 await 此函数，而不是直接读 storage。
+ */
+export async function ensureKitchenId(): Promise<number | null> {
+  const local = getCurrentKitchenId();
+  if (local) return local;
+  try {
+    const mine = await kitchenApi.mine();
+    if (mine.length > 0) {
+      setCurrentKitchen(mine[mine.length - 1]);
+      return mine[mine.length - 1].id;
+    }
+  } catch {
+    // 未登录/token 失效：由调用方处理
+  }
+  return null;
+}
+
 export const kitchenApi = {
   create: (name: string) =>
     request<KitchenView>({ url: '/api/kitchens', method: 'POST', data: { name } }),
