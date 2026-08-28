@@ -1,0 +1,8 @@
+{
+  "appId": "com.syg.sharedkitchen",
+  "appName": "共享厨房",
+  "webDir": "dist/build/h5",
+  "server": {
+    "androidScheme": "https"
+  }
+}
