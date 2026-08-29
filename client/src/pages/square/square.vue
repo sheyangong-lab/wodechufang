@@ -24,7 +24,7 @@ function search() {
     .catch(() => (loaded.value = true));
 }
 
-function onInput(e: { detail: { value: string } }) {
+function onInput(e: any) {
   keyword.value = e.detail.value;
 }
 

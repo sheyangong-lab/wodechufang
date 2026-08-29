@@ -1,27 +1,14 @@
 <script setup lang="ts">
 import { theme } from '@/styles/theme';
 import { kitchenApi, setCurrentKitchen, clearCurrentKitchen, ROLE_LABELS } from '@/api/kitchen';
-import type { KitchenDetail, KitchenView, VipStatus } from '@/api/kitchen';
+import type { KitchenDetail, KitchenView } from '@/api/kitchen';
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import ActionSheet from '@/components/action-sheet.vue';
 import InputDialog from '@/components/input-dialog.vue';
 
 const detail = ref<KitchenDetail | null>(null);
-const vip = ref<VipStatus | null>(null);
 const isOwner = computed(() => detail.value?.kitchen.myRole === 'OWNER');
-const isVip = computed(() => !!detail.value?.kitchen.vip);
-const redeemDialogVisible = ref(false);
-
-// 额度进度（会员动态扩容：50/5 → 500/50）
-const dishUsage = computed(() => ({
-  used: 0,
-  total: detail.value?.kitchen.effectiveDishQuota ?? 50,
-}));
-const catUsage = computed(() => ({
-  used: 0,
-  total: detail.value?.kitchen.effectiveCategoryQuota ?? 5,
-}));
 
 onShow(refresh);
 
@@ -117,42 +104,8 @@ function goBind() {
   uni.navigateTo({ url: '/pages/kitchen/bind' });
 }
 
-function upgrade() {
-  vip.value = null;
-  kitchenApi.vipStatus(detail.value!.kitchen.id).then((s) => {
-    vip.value = s;
-    const plans = s.plans.map((p) => `${p.name} ¥${(p.priceFen / 100).toFixed(0)}（${p.durationDays}天）`);
-    uni.showActionSheet({
-      itemList: [...plans, '输入兑换码'],
-      success: ({ tapIndex }) => {
-        if (tapIndex < plans.length) {
-          uni.showToast({ title: '在线支付即将开放，请用兑换码开通', icon: 'none' });
-        } else {
-          redeemDialogVisible.value = true;
-        }
-      },
-    });
-  });
-}
-
-function onRedeem(code: string) {
-  redeemDialogVisible.value = false;
-  kitchenApi.redeemVip(detail.value!.kitchen.id, code).then((s) => {
-    vip.value = s;
-    uni.showToast({
-      title: s.isVip ? `会员已开通，有效期至 ${s.expireDate}` : '兑换异常',
-      icon: 'none',
-    });
-    refresh();
-  });
-}
-
 function placeholder(name: string, milestone = '后续版本') {
-  uni.showToast({ title: `${name}：${mileageHint(milestone)}`, icon: 'none' });
-}
-
-function mileageHint(m: string) {
-  return `${m} 开发`;
+  uni.showToast({ title: `${name}：${milestone} 开发`, icon: 'none' });
 }
 
 function dissolve() {
@@ -175,7 +128,6 @@ function dissolve() {
 const gridA = ['厨房成员', '任务卡', '成员寄存'];
 const gridB = ['修改厨房', '创建厨房', '克隆菜谱', '厨房主题'];
 const gridC = ['分享广场', '经营分析', '备份导出', '回收站'];
-const gridVip = ['高级设置', '下单表单', '厨房桌码', '收款码', '小票机', '厨房黑名单'];
 
 function onGrid(item: string) {
   switch (item) {
@@ -209,29 +161,10 @@ function onGrid(item: string) {
           <text class="switch-btn" hover-class="press-bg" @tap="switchKitchen">切换厨房</text>
         </view>
 
-        <!-- 额度进度条 -->
-        <view class="quota">
-          <text class="quota-label">菜品额度：</text>
-          <view class="bar">
-            <view class="bar-inner" :style="{ width: (dishUsage.used / dishUsage.total * 100) + '%' }" />
-          </view>
-          <text class="quota-num">{{ dishUsage.used }}/{{ dishUsage.total }}</text>
-        </view>
-        <view class="quota">
-          <text class="quota-label">分类额度：</text>
-          <view class="bar">
-            <view class="bar-inner" :style="{ width: (catUsage.used / catUsage.total * 100) + '%' }" />
-          </view>
-          <text class="quota-num">{{ catUsage.used }}/{{ catUsage.total }}</text>
-        </view>
-
         <text class="meta-line">公告：{{ detail.kitchen.announcement || '暂无' }}<text v-if="isOwner" class="meta-link" hover-class="press-dim" @tap="editAnnouncement"> 编辑</text></text>
         <text class="meta-line">创始人：{{ detail.kitchen.ownerNickname }}</text>
-        <text class="meta-line">厨房会员：{{ isVip ? `生效中（至 ${detail.kitchen.vipExpireAt?.slice(0, 10)}）` : '未开通' }}<text class="meta-link" hover-class="press-dim" @tap="upgrade"> {{ isVip ? '续费' : '去开通' }}</text></text>
+        <text class="meta-line">成员数：{{ detail.kitchen.memberCount }} 人（全功能免费，无额度限制）</text>
 
-        <button class="btn-upgrade" hover-class="press-sink" @tap="upgrade">
-          {{ isVip ? '续费厨房会员' : '升级厨房' }}
-        </button>
         <text v-if="isOwner" class="dissolve" hover-class="press-dim" @tap="dissolve">解散厨房</text>
       </view>
 
@@ -249,11 +182,6 @@ function onGrid(item: string) {
       <view class="card grid-card">
         <view class="grid-row wrap">
           <text v-for="g in gridC" :key="g" class="grid-item" hover-class="press-dim" @tap="onGrid(g)">{{ g }}</text>
-        </view>
-      </view>
-      <view class="card grid-card">
-        <view class="grid-row wrap">
-          <text v-for="g in gridVip" :key="g" class="grid-item vip" hover-class="press-dim" @tap="upgrade">{{ g }}<text class="vip-tag">会员</text></text>
         </view>
       </view>
 
@@ -281,14 +209,6 @@ function onGrid(item: string) {
         :maxlength="100"
         @confirm="onAnnouncement"
         @close="announceDialogVisible = false"
-      />
-      <InputDialog
-        :visible="redeemDialogVisible"
-        title="兑换厨房会员"
-        placeholder="输入兑换码"
-        :maxlength="30"
-        @confirm="onRedeem"
-        @close="redeemDialogVisible = false"
       />
     </template>
   </view>
@@ -333,26 +253,11 @@ function onGrid(item: string) {
   padding: 12rpx 20rpx;
 }
 
-.quota { display: flex; align-items: center; margin-top: 24rpx; }
-.quota-label { font-size: 26rpx; color: v-bind('theme.title'); width: 170rpx; }
-.bar {
-  flex: 1; height: 16rpx; border-radius: 8rpx;
-  background: #f2f0ea; overflow: hidden;
-}
-.bar-inner { height: 100%; background: v-bind('theme.primaryBtn'); border-radius: 8rpx; }
-.quota-num { font-size: 24rpx; color: v-bind('theme.sub'); margin-left: 16rpx; width: 80rpx; text-align: right; }
-
 .meta-line { display: block; font-size: 26rpx; color: v-bind('theme.title'); margin-top: 24rpx; }
 .meta-link { color: v-bind('theme.primaryBtn'); }
 
-.btn-upgrade {
-  margin-top: 32rpx;
-  background: v-bind('theme.primaryBtn'); color: #fff;
-  border-radius: 16rpx; font-size: 30rpx; line-height: 88rpx;
-}
-.btn-upgrade::after { border: none; }
 .dissolve {
-  display: block; text-align: center; margin-top: 24rpx;
+  display: block; text-align: center; margin-top: 32rpx;
   font-size: 28rpx; color: v-bind('theme.danger');
   text-decoration: underline;
 }
@@ -366,10 +271,4 @@ function onGrid(item: string) {
   padding: 8rpx 0;
 }
 .grid-row.wrap .grid-item { width: 25%; }
-.grid-item.vip { color: v-bind('theme.sub'); }
-.vip-tag {
-  display: inline-block; margin-left: 6rpx;
-  font-size: 18rpx; color: #8a6a1f;
-  background: #f3e3b3; border-radius: 6rpx; padding: 2rpx 8rpx;
-}
 </style>

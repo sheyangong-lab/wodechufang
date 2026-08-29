@@ -227,7 +227,7 @@ function onDiffPick(key: string) {
   difficulty.value = key;
 }
 
-function toggleSpecs(e: { detail: { value: boolean } }) {
+function toggleSpecs(e: any) {
   multiSpec.value = e.detail.value;
   if (multiSpec.value && specs.value.length === 0) {
     specs.value = [{ name: '', priceFen: 0 }];
@@ -242,7 +242,7 @@ function removeSpec(i: number) {
   specs.value.splice(i, 1);
 }
 
-function onSpecPrice(i: number, e: { detail: { value: string } }) {
+function onSpecPrice(i: number, e: any) {
   const fen = yuanToFen(e.detail.value);
   specs.value[i].priceFen = fen ?? 0;
 }
@@ -499,7 +499,7 @@ function toast(title: string) {
 .link { font-size: 26rpx; color: v-bind('theme.primaryBtn'); }
 
 .stars { display: flex; align-items: center; gap: 8rpx; }
-.star { font-size: 40rpx; color: #e5dfd2; padding: 0 4rpx; }
+.star { font-size: 40rpx; color: v-bind('theme.divider'); padding: 0 4rpx; }
 .star.on { color: v-bind('theme.primaryBtn'); }
 .star-text { font-size: 22rpx; color: v-bind('theme.sub'); margin-left: 8rpx; }
 

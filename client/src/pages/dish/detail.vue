@@ -19,7 +19,7 @@ const currentPriceFen = computed(() =>
 onLoad((query) => {
   const id = query && query.id ? Number(query.id) : null;
   if (!id) return;
-  isOwnerView.value = query && query.from === 'manage';
+  isOwnerView.value = !!(query && query.from === 'manage');
   dishApi.detail(id).then((d) => {
     dish.value = d;
     specs.value = parseSpecs(d.specsJson);
@@ -195,7 +195,7 @@ function fmtTime(iso: string) {
 }
 .cart-btn::after { border: none; }
 .stars { display: flex; margin-top: 8rpx; }
-.star { color: #e5dfd2; font-size: 30rpx; margin-right: 4rpx; }
+.star { color: v-bind('theme.divider'); font-size: 30rpx; margin-right: 4rpx; }
 .star.on { color: v-bind('theme.primaryBtn'); }
 .desc { display: block; font-size: 26rpx; color: v-bind('theme.sub'); margin-top: 16rpx; line-height: 42rpx; }
 .meta { display: flex; flex-wrap: wrap; gap: 12rpx; margin-top: 20rpx; }

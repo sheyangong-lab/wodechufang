@@ -8,8 +8,8 @@ export interface ApiResponse<T> {
 
 interface RequestOptions {
   url: string;
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
-  data?: Record<string, unknown>;
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  data?: object;
   /** 静默模式：出错不弹 toast，由调用方处理 */
   silent?: boolean;
 }
@@ -23,7 +23,8 @@ export function request<T>(options: RequestOptions): Promise<T> {
     const token = uni.getStorageSync('token');
     uni.request({
       url: getApiBase() + options.url,
-      method: options.method || 'GET',
+      // uni.request 类型定义未收录 PATCH，但 H5/App 端运行时透传可用
+      method: (options.method || 'GET') as any,
       data: options.data,
       header: token ? { Authorization: `Bearer ${token}` } : {},
       success: (res) => {

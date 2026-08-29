@@ -84,14 +84,14 @@ import { watch } from 'vue';
 <style lang="scss" scoped>
 .mask {
   position: fixed; left: 0; right: 0; top: 0; bottom: 0;
-  background: rgba(40, 32, 16, 0.5);
+  background: rgba(15, 12, 6, 0.6);
   z-index: 999;
   display: flex; align-items: center; justify-content: center;
   animation: fadeIn 0.2s ease both;
 }
 .dialog {
   width: 600rpx;
-  background: #fff;
+  background: v-bind('theme.card');
   border-radius: 28rpx;
   padding: 40rpx 36rpx 0;
   animation: pop 0.2s ease both;

@@ -56,7 +56,11 @@ onShow(async () => {
     loading.value = false;
     return;
   }
-  detail.value = loadKitchenCache();
+  const cached = loadKitchenCache();
+  if (cached) {
+    // 缓存存的是 KitchenView，补一层 KitchenDetail 形状保证模板可渲染
+    detail.value = { kitchen: cached, members: [] };
+  }
   hasKitchen.value = true;
   await loadKitchen(id);
 });
@@ -120,7 +124,7 @@ function toggleSearch() {
   }
 }
 
-function onSearchInput(e: { detail: { value: string } }) {
+function onSearchInput(e: any) {
   keyword.value = e.detail.value;
   loadDishes();
 }
@@ -159,7 +163,7 @@ const addItems: SheetItem[] = [
   { key: 'clone', title: '克隆菜谱', desc: '复制厨房码，快速复刻同款菜单' },
   { key: 'import', title: '快捷导入', desc: '复制链接，快速导入菜谱' },
   { key: 'square', title: '广场偷菜', desc: '广场上百万菜谱供你选择', badge: '推荐' },
-  { key: 'batch', title: '批量添加', desc: '快速进行批量手动添加', badge: '会员', vip: true },
+  { key: 'batch', title: '批量添加', desc: '快速进行批量手动添加' },
 ];
 
 function onAddSelect(key: string) {
@@ -173,7 +177,7 @@ function onAddSelect(key: string) {
   } else if (key === 'import') {
     uni.showToast({ title: '快捷导入：外部链接抓取不可控，暂不开发', icon: 'none' });
   } else {
-    uni.showToast({ title: '批量添加为会员功能，M6 后开放', icon: 'none' });
+    uni.showToast({ title: '批量添加：后续版本开发', icon: 'none' });
   }
 }
 
@@ -434,7 +438,7 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
 }
 .btn-gray {
   display: flex; align-items: center; gap: 8rpx;
-  background: #f2f0ea; color: v-bind('theme.sub');
+  background: v-bind('theme.chipBg'); color: v-bind('theme.sub');
   border-radius: 32rpx; padding: 10rpx 24rpx; font-size: 26rpx;
 }
 .icon-sm { width: 30rpx; height: 30rpx; }
@@ -500,7 +504,7 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
 .star { color: v-bind('theme.primaryBtn'); font-size: 24rpx; margin-right: 2rpx; }
 .dish-cat {
   display: inline-block; font-size: 20rpx; color: v-bind('theme.sub');
-  background: #f7f5ef; border-radius: 8rpx; padding: 2rpx 12rpx; margin-top: 8rpx;
+  background: v-bind('theme.chipBg'); border-radius: 8rpx; padding: 2rpx 12rpx; margin-top: 8rpx;
 }
 .dish-price { font-size: 30rpx; font-weight: 700; color: v-bind('theme.income'); }
 .dish-bottom { display: flex; align-items: center; justify-content: space-between; margin-top: 10rpx; }
@@ -539,5 +543,5 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
   background: v-bind('theme.primaryBtn'); color: #fff;
   font-size: 28rpx; border-radius: 32rpx; padding: 12rpx 40rpx;
 }
-.submit.disabled { background: #ddd8cc; }
+.submit.disabled { background: v-bind('theme.divider'); }
 </style>

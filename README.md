@@ -1,7 +1,7 @@
 # 共享厨房 · 情侣/家庭点菜系统
 
 安卓 + 鸿蒙双端 App（uni-app）+ Spring Boot 后端 + Web 管理后台。
-**当前状态：M1–M7 全功能完成并经真机/双端/后台三通道验证；M8 出包待 Windows HBuilderX（见 docs/HBuilderX打包指南.md）。**
+**当前状态：M1–M8 全功能完成；APK 由 Linux 侧 Capacitor 直出；全功能免费（VIP 已下线）；支持深/浅色/跟随系统主题。**
 
 ## 快速导航
 
@@ -34,17 +34,26 @@ npm install            # 报 peer 冲突加 --legacy-peer-deps
 npm run dev:h5         # 浏览器打开提示的地址
 ```
 
-- 后端地址唯一入口：`src/api/config.ts` 的 `API_BASE`
-- Android APK 直出（Linux 可用）：`npx cap sync android && cd android && ./gradlew assembleDebug`
+- 后端地址唯一入口：`src/api/config.ts`（App 内也可在「我 → 服务器设置」运行时改）
+- Android APK 直出（Linux 可用）：**必须用 JDK 17**（默认 Java 26 会让 Gradle 8.2.1 报 Unsupported class file major version 70）
+
+```bash
+npx cap sync android
+cd android && JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 ./gradlew assembleDebug
+# 产物: android/app/build/outputs/apk/debug/app-debug.apk
+```
 
 ### 回归测试
 
 ```bash
-./scripts/smoke-test.sh http://localhost:8080   # 28 用例全链路，SMOKE PASS 即交付态
+./scripts/smoke-test.sh http://localhost:8080   # 后端全链路，SMOKE PASS 即交付态
+cd client && node e2e-selftest.mjs              # 浏览器自测(需先起后端+dev:h5)，14 断言
 ```
 
 ## 关键约定
 
-- 金额一律「分」整数存储；UI 色值只用 `client/src/styles/theme.ts`；弹层/输入只用 `components/` 两个自研组件（**禁 emoji 图标、禁原生 ActionSheet/showModal editable**）
-- 每个后端改动后必跑 smoke-test；客户端改动后 `npm run build:h5` 必须过
+- 金额一律「分」整数存储；UI 色值只用 `client/src/styles/theme.ts`（reactive，支持深/浅色/跟随系统，页面 `v-bind('theme.xxx')` 自动跟随）；弹层/输入只用 `components/` 自研组件（**禁 emoji 图标、禁原生 ActionSheet/showModal editable**）
+- 表结构一律走 Flyway（`db/migration/{sqlite,postgresql}`），禁改历史迁移
+- 安卓端行为：Capacitor 插件 `@capacitor/app`（返回键：栈内返回/末栈退出）、`@capacitor/local-notifications`（临期提醒进系统通知栏）、`@capacitor/status-bar`（状态栏跟随主题）——**插件大版本必须与 `@capacitor/core` 一致（当前 6.x）**
+- 每个后端改动后必跑 smoke-test；客户端改动后 `npm run build:h5` + `npx vue-tsc --noEmit` 必须过
 - 测试账号：店长 `13800002222` / 家人 `13900003333`，验证码万能码 `1234`

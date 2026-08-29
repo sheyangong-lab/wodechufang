@@ -173,7 +173,7 @@ function clear() {
   width: 68rpx; height: 68rpx; border-radius: 16rpx;
   display: flex; align-items: center; justify-content: center;
 }
-.day.dim text { color: #d8d2c6; }
+.day.dim text { color: v-bind('theme.sub'); opacity: 0.55; }
 .day.today text { text-decoration: underline; text-underline-offset: 6rpx; }
 .day.selected text { background: v-bind('theme.primaryBtn'); color: #fff; font-weight: 600; }
 .foot { text-align: center; padding-top: 16rpx; }

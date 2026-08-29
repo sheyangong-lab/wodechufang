@@ -6,7 +6,6 @@ export interface SheetItem {
   title: string;
   desc?: string;
   badge?: string;
-  vip?: boolean;
 }
 
 defineProps<{
@@ -33,7 +32,7 @@ const emit = defineEmits<{
       >
         <view class="title-row">
           <text class="item-title">{{ it.title }}</text>
-          <text v-if="it.badge" class="badge" :class="{ 'badge-vip': it.vip }">{{ it.badge }}</text>
+          <text v-if="it.badge" class="badge">{{ it.badge }}</text>
         </view>
         <text v-if="it.desc" class="item-desc">{{ it.desc }}</text>
       </view>
@@ -46,13 +45,13 @@ const emit = defineEmits<{
 <style lang="scss" scoped>
 .mask {
   position: fixed; left: 0; right: 0; top: 0; bottom: 0;
-  background: rgba(40, 32, 16, 0.5);
+  background: rgba(20, 16, 8, 0.55);
   z-index: 999;
   display: flex; flex-direction: column; justify-content: flex-end;
   animation: fadeIn 0.2s ease both;
 }
 .sheet {
-  background: #fdfaf3;
+  background: v-bind('theme.card');
   border-radius: 32rpx 32rpx 0 0;
   padding: 16rpx 0 calc(24rpx + env(safe-area-inset-bottom));
   animation: slideUp 0.25s ease both;
@@ -66,11 +65,7 @@ const emit = defineEmits<{
   background: v-bind('theme.primaryBtn');
   border-radius: 8rpx; padding: 2rpx 12rpx;
 }
-.badge-vip {
-  color: #6b5312;
-  background: #eccf8e;
-}
-.gap { height: 14rpx; background: #f0e9da; }
+.gap { height: 14rpx; background: v-bind('theme.divider'); }
 .cancel {
   padding: 30rpx 0; text-align: center;
   font-size: 32rpx; color: v-bind('theme.sub');

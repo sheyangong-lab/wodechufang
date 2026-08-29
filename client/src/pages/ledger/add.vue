@@ -1,50 +1,100 @@
 <script setup lang="ts">
 import { theme } from '@/styles/theme';
-import { ledgerApi } from '@/api/ledger';
+import { ledgerApi, groupCategories } from '@/api/ledger';
+import type { LedgerCategoryView } from '@/api/ledger';
 import { yuanToFen } from '@/api/dish';
-import { getCurrentKitchenId } from '@/api/kitchen';
+import { ensureKitchenId, getCurrentKitchenId } from '@/api/kitchen';
 import { onLoad } from '@dcloudio/uni-app';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import ActionSheet from '@/components/action-sheet.vue';
+import InputDialog from '@/components/input-dialog.vue';
 
 const kitchenId = ref<number | null>(getCurrentKitchenId());
 const type = ref<'EXPENSE' | 'INCOME'>('EXPENSE');
-const category = ref('食材采购');
+const category = ref('');
 const amountYuan = ref('');
 const date = ref(new Date().toISOString().slice(0, 10));
 const remark = ref('');
-const categories = ref<{ expense: string[]; income: string[] }>({ expense: [], income: [] });
+const groups = ref<{ expense: LedgerCategoryView[]; income: LedgerCategoryView[] }>({
+  expense: [],
+  income: [],
+});
 const submitting = ref(false);
 
-onLoad((query) => {
+onLoad(async (query) => {
+  kitchenId.value = await ensureKitchenId();
   if (query && query.month) {
     // 从指定月进入时，日期默认为该月今天（补记场景用日期选择器调整）
     date.value = `${query.month}-${String(new Date().getDate()).padStart(2, '0')}`;
   }
-  if (kitchenId.value) {
-    ledgerApi
-      .categoriesOf(kitchenId.value)
-      .then((c) => (categories.value = c))
-      .catch(() => {});
-  }
+  await loadCategories();
+  if (!category.value) category.value = defaultCategory();
 });
 
-const currentCategories = () => (type.value === 'EXPENSE' ? categories.value.expense : categories.value.income);
-
-function setType(t: 'EXPENSE' | 'INCOME') {
-  type.value = t;
-  const list = currentCategories();
-  if (list.length > 0 && !list.includes(category.value)) {
-    category.value = list[0];
+async function loadCategories() {
+  if (!kitchenId.value) return;
+  try {
+    groups.value = groupCategories(await ledgerApi.categories(kitchenId.value));
+  } catch {
+    // toast 已统一弹出
   }
 }
 
+const currentCategories = computed(() =>
+  type.value === 'EXPENSE' ? groups.value.expense : groups.value.income
+);
+
+function defaultCategory(): string {
+  const list = currentCategories.value;
+  if (list.length === 0) return '';
+  const preferred = list.find((c) => (type.value === 'EXPENSE' ? c.name === '食材采购' : c.name === '菜品销售'));
+  return (preferred || list[0]).name;
+}
+
+function setType(t: 'EXPENSE' | 'INCOME') {
+  type.value = t;
+  if (!currentCategories.value.some((c) => c.name === category.value)) {
+    category.value = defaultCategory();
+  }
+}
+
+// 分类选择：自研底部弹层（替代原生 ActionSheet，UI 统一）
+const catSheetVisible = ref(false);
+const catItems = computed(() =>
+  currentCategories.value.map((c) => ({
+    key: String(c.id),
+    title: c.name,
+    desc: category.value === c.name ? '当前分类' : '',
+  }))
+);
+
 function pickCategory() {
-  const list = currentCategories();
-  if (list.length === 0) return;
-  uni.showActionSheet({
-    itemList: list,
-    success: ({ tapIndex }) => (category.value = list[tapIndex]),
+  if (currentCategories.value.length === 0) {
+    uni.showToast({ title: '还没有分类，先添加一个', icon: 'none' });
+    catDialogVisible.value = true;
+    return;
+  }
+  catSheetVisible.value = true;
+}
+
+function onCatPick(key: string) {
+  catSheetVisible.value = false;
+  const c = currentCategories.value.find((x) => String(x.id) === key);
+  if (c) category.value = c.name;
+}
+
+const catDialogVisible = ref(false);
+
+function onCatCreate(name: string) {
+  catDialogVisible.value = false;
+  ledgerApi.createCategory(kitchenId.value!, type.value, name).then((c) => {
+    loadCategories();
+    category.value = c.name;
   });
+}
+
+function goManage() {
+  uni.navigateTo({ url: '/pages/ledger/categories' });
 }
 
 function pickDate(e: { detail: { value: string } }) {
@@ -89,6 +139,11 @@ function submit() {
         <text class="chev">›</text>
       </view>
       <view class="row">
+        <text class="label">没有合适的？</text>
+        <text class="link" hover-class="press-dim" @tap="catDialogVisible = true">＋ 添加分类</text>
+        <text class="link manage" hover-class="press-dim" @tap="goManage">管理分类</text>
+      </view>
+      <view class="row">
         <text class="label req">金额（元）</text>
         <input v-model="amountYuan" class="input amount" type="digit" placeholder="0.00" placeholder-class="ph" />
       </view>
@@ -105,6 +160,21 @@ function submit() {
     </view>
 
     <button class="btn-submit" :disabled="submitting" hover-class="press-sink" @tap="submit">保存</button>
+
+    <ActionSheet
+      :visible="catSheetVisible"
+      :items="catItems"
+      @select="onCatPick"
+      @close="catSheetVisible = false"
+    />
+    <InputDialog
+      :visible="catDialogVisible"
+      :title="type === 'EXPENSE' ? '添加支出分类' : '添加收入分类'"
+      :placeholder="type === 'EXPENSE' ? '如：交通 /日用 /宠物' : '如：工资 /副业'"
+      :maxlength="10"
+      @confirm="onCatCreate"
+      @close="catDialogVisible = false"
+    />
   </view>
 </template>
 
@@ -129,8 +199,8 @@ function submit() {
   padding: 18rpx 0;
 }
 .type-btn.on { font-weight: 700; }
-.type-btn.out.on { color: v-bind('theme.expense'); border-color: v-bind('theme.expense'); background: #e9f3ec; }
-.type-btn.inc.on { color: v-bind('theme.income'); border-color: v-bind('theme.income'); background: #fdefe2; }
+.type-btn.out.on { color: v-bind('theme.expense'); border-color: v-bind('theme.expense'); background: v-bind('theme.successLight'); }
+.type-btn.inc.on { color: v-bind('theme.income'); border-color: v-bind('theme.income'); background: v-bind('theme.primaryLight'); }
 
 .row {
   display: flex; align-items: center;
@@ -144,6 +214,8 @@ function submit() {
 .value { font-size: 26rpx; color: v-bind('theme.title'); }
 .value.picker { color: v-bind('theme.title'); }
 .chev { color: v-bind('theme.sub'); margin-left: 8rpx; }
+.link { font-size: 26rpx; color: v-bind('theme.primaryBtn'); flex: 1; text-align: right; }
+.link.manage { flex: 0.6; }
 .ph { color: v-bind('theme.sub'); }
 
 .btn-submit {

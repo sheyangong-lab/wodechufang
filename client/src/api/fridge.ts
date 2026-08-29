@@ -7,6 +7,7 @@ export interface FridgeItemView {
   kitchenId: number;
   categoryId: number | null;
   name: string;
+  imageUrl: string | null;
   producedDate: string | null;
   shelfLifeValue: number;
   shelfLifeUnit: 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
@@ -73,7 +74,7 @@ export const fridgeApi = {
   createItems: (
     kitchenId: number,
     items: {
-      name: string; categoryId?: number | null; producedDate?: string | null;
+      name: string; categoryId?: number | null; imageUrl?: string | null; producedDate?: string | null;
       shelfLifeValue: number; shelfLifeUnit: string; quantity?: string; remark?: string;
     }[]
   ) =>

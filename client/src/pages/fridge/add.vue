@@ -2,12 +2,15 @@
 import { theme } from '@/styles/theme';
 import { fridgeApi, UNIT_LABELS } from '@/api/fridge';
 import type { FridgeCategoryView } from '@/api/fridge';
+import { uploadImage, fullUrl } from '@/api/dish';
 import { ensureKitchenId, getCurrentKitchenId } from '@/api/kitchen';
 import { onLoad } from '@dcloudio/uni-app';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import ActionSheet from '@/components/action-sheet.vue';
 
 interface Draft {
   name: string;
+  imageUrl: string;
   categoryId: number | null;
   producedDate: string;
   shelfLifeValue: string;
@@ -24,6 +27,7 @@ const submitting = ref(false);
 function newDraft(): Draft {
   return {
     name: '',
+    imageUrl: '',
     categoryId: null,
     producedDate: '',
     shelfLifeValue: '7',
@@ -56,16 +60,36 @@ function removeItem(i: number) {
   drafts.value.splice(i, 1);
 }
 
+/** 拍照或从相册选图上传（uni.chooseImage 默认双来源），回填相对 URL */
+function pickImage(i: number) {
+  uploadImage()
+    .then((url) => (drafts.value[i].imageUrl = url))
+    .catch(() => {});
+}
+
+function removeImage(i: number) {
+  drafts.value[i].imageUrl = '';
+}
+
+// 分类选择：自研底部弹层（UI 与菜谱编辑页统一）
+const catSheetVisible = ref(false);
+const catSheetIndex = ref(0);
+const catItems = computed(() =>
+  categories.value.map((c) => ({ key: String(c.id), title: c.name }))
+);
+
 function pickCategory(i: number) {
-  const names = categories.value.map((c) => c.name);
-  if (names.length === 0) {
-    uni.showToast({ title: '还没有类别，去类别管理添加', icon: 'none' });
+  if (categories.value.length === 0) {
+    uni.showToast({ title: '还没有类别，去冰箱页「类别管理」添加', icon: 'none' });
     return;
   }
-  uni.showActionSheet({
-    itemList: names,
-    success: ({ tapIndex }) => (drafts.value[i].categoryId = categories.value[tapIndex].id),
-  });
+  catSheetIndex.value = i;
+  catSheetVisible.value = true;
+}
+
+function onCatPick(key: string) {
+  catSheetVisible.value = false;
+  drafts.value[catSheetIndex.value].categoryId = Number(key);
 }
 
 function pickProduced(i: number, e: { detail: { value: string } }) {
@@ -88,6 +112,7 @@ function submit() {
       valid.map((d) => ({
         name: d.name.trim(),
         categoryId: d.categoryId,
+        imageUrl: d.imageUrl || null,
         producedDate: d.producedDate || null,
         shelfLifeValue: Number(d.shelfLifeValue) || 1,
         shelfLifeUnit: d.shelfLifeUnit,
@@ -111,15 +136,29 @@ function submit() {
         <text v-if="drafts.length > 1" class="card-del" hover-class="press-dim" @tap="removeItem(i)">✕</text>
       </view>
 
-      <view class="row">
-        <text class="label req">食材名称</text>
-        <input v-model="d.name" class="input" maxlength="20" placeholder="食材名称" placeholder-class="ph" />
+      <!-- 照片：拍照/相册 -->
+      <view class="photo-row">
+        <view class="photo-box" hover-class="press-dim" @tap="pickImage(i)">
+          <image v-if="d.imageUrl" class="photo" :src="fullUrl(d.imageUrl)" mode="aspectFill" />
+          <view v-else class="photo-holder">
+            <image class="photo-icon" src="/static/icons/pot.png" mode="aspectFit" />
+            <text class="photo-tip">拍照 / 相册</text>
+          </view>
+          <text v-if="d.imageUrl" class="photo-del" @tap.stop="removeImage(i)">✕</text>
+        </view>
+        <view class="photo-side">
+          <view class="row no-border">
+            <text class="label req">食材名称</text>
+            <input v-model="d.name" class="input" maxlength="20" placeholder="食材名称" placeholder-class="ph" />
+          </view>
+          <view class="row no-border" hover-class="press-dim" @tap="pickCategory(i)">
+            <text class="label req">食材类别</text>
+            <text class="value">{{ categories.find((c) => c.id === d.categoryId)?.name || '请选择类别' }}</text>
+            <text class="chev">›</text>
+          </view>
+        </view>
       </view>
-      <view class="row" hover-class="press-dim" @tap="pickCategory(i)">
-        <text class="label req">食材类别</text>
-        <text class="value">{{ categories.find((c) => c.id === d.categoryId)?.name || '请选择类别' }}</text>
-        <text class="chev">›</text>
-      </view>
+
       <view class="row">
         <text class="label">生产日期</text>
         <picker mode="date" :value="d.producedDate" @change="pickProduced(i, $event)">
@@ -153,6 +192,13 @@ function submit() {
     <text class="count">共{{ drafts.length }}个食材</text>
     <button class="btn-add" hover-class="press-dim" @tap="addItem">＋ 添加食材</button>
     <button class="btn-submit" :disabled="submitting" hover-class="press-sink" @tap="submit">提交</button>
+
+    <ActionSheet
+      :visible="catSheetVisible"
+      :items="catItems"
+      @select="onCatPick"
+      @close="catSheetVisible = false"
+    />
   </view>
 </template>
 
@@ -178,15 +224,41 @@ function submit() {
 .card-no { font-size: 26rpx; font-weight: 600; color: v-bind('theme.primaryBtn'); }
 .card-del { font-size: 28rpx; color: v-bind('theme.danger'); padding: 4rpx 8rpx; }
 
+.photo-row { display: flex; gap: 24rpx; padding-top: 16rpx; }
+.photo-box {
+  position: relative;
+  width: 200rpx; height: 200rpx; flex-shrink: 0;
+  border: 2rpx dashed v-bind('theme.divider'); border-radius: 16rpx;
+  overflow: visible;
+}
+.photo { width: 100%; height: 100%; border-radius: 14rpx; }
+.photo-holder {
+  width: 100%; height: 100%;
+  background: v-bind('theme.primaryLight');
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10rpx;
+  border-radius: 14rpx; box-sizing: border-box;
+}
+.photo-icon { width: 56rpx; height: 56rpx; opacity: 0.5; }
+.photo-tip { font-size: 22rpx; color: v-bind('theme.sub'); }
+.photo-del {
+  position: absolute; top: -14rpx; right: -14rpx;
+  width: 40rpx; height: 40rpx; border-radius: 50%;
+  background: v-bind('theme.danger'); color: #fff;
+  font-size: 24rpx; text-align: center; line-height: 40rpx;
+  z-index: 2;
+}
+.photo-side { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
 .row {
   display: flex; align-items: center;
   border-bottom: 2rpx solid v-bind('theme.divider');
   padding: 24rpx 0;
 }
+.row.no-border { border-bottom: none; padding: 18rpx 0; }
 .row.col { flex-direction: column; align-items: stretch; border-bottom: none; }
-.label { font-size: 28rpx; color: v-bind('theme.title'); width: 160rpx; }
+.label { font-size: 28rpx; color: v-bind('theme.title'); width: 160rpx; flex-shrink: 0; }
 .label.req::before { content: '* '; color: v-bind('theme.danger'); }
-.input { flex: 1; font-size: 28rpx; color: v-bind('theme.title'); text-align: right; }
+.input { flex: 1; font-size: 28rpx; color: v-bind('theme.title'); text-align: right; min-width: 0; }
 .input.life { width: 100rpx; }
 .value { font-size: 26rpx; color: v-bind('theme.sub'); }
 .value.picker { color: v-bind('theme.title'); }
@@ -205,7 +277,7 @@ function submit() {
 
 .count { display: block; text-align: center; font-size: 24rpx; color: v-bind('theme.sub'); margin: 8rpx 0 20rpx; }
 .btn-add {
-  background: #fff; color: v-bind('theme.primaryBtn');
+  background: v-bind('theme.card'); color: v-bind('theme.primaryBtn');
   border: 2rpx solid v-bind('theme.primaryBtn');
   border-radius: 16rpx; font-size: 30rpx; line-height: 84rpx;
   margin-bottom: 20rpx;

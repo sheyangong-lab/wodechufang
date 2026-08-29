@@ -1,25 +1,61 @@
 <script setup lang="ts">
-import { theme } from '@/styles/theme';
+import { theme, getThemeMode, setThemeMode, MODE_LABELS } from '@/styles/theme';
+import type { ThemeMode } from '@/styles/theme';
 import { authApi, loadUser, logout } from '@/api/auth';
 import type { UserView } from '@/api/auth';
 import { onShow } from '@dcloudio/uni-app';
 import { ref } from 'vue';
 import InputDialog from '@/components/input-dialog.vue';
+import ActionSheet from '@/components/action-sheet.vue';
 import { getApiBase, setApiBase } from '@/api/config';
 
-const user = ref<UserView | null>(loadUser());
-const grid = [
-  ['厨房管理', '任务大厅', '厨房菜篮', '饮食计划', '我的积分'],
-  ['数据统计', '新手教程', '提点意见', '平台客服', '更多功能'],
-];
-const notices = ['绑定消息通知', '系统通知', '订单通知', '收到的评论'];
+interface GridItem {
+  key: string;
+  icon: string;
+  url?: string;
+}
 
-function onGrid(item: string) {
-  if (item === '厨房管理') {
-    uni.navigateTo({ url: '/pages/profile/manage' });
+const user = ref<UserView | null>(loadUser());
+const grid: GridItem[] = [
+  { key: '厨房管理', icon: '/static/icons/chefhat.png', url: '/pages/profile/manage' },
+  { key: '任务大厅', icon: '/static/icons/grid-mission.png' },
+  { key: '厨房菜篮', icon: '/static/icons/basket.png' },
+  { key: '饮食计划', icon: '/static/icons/grid-calendar.png' },
+  { key: '我的积分', icon: '/static/icons/grid-coin.png' },
+  { key: '数据统计', icon: '/static/icons/grid-chart.png' },
+  { key: '新手教程', icon: '/static/icons/grid-book.png' },
+  { key: '提点意见', icon: '/static/icons/grid-chat.png' },
+  { key: '平台客服', icon: '/static/icons/grid-headset.png' },
+  { key: '更多功能', icon: '/static/icons/grid-dots.png' },
+];
+const notices = [
+  { key: 'bind', label: '绑定消息通知' },
+  { key: 'system', label: '系统通知' },
+  { key: 'order', label: '订单通知' },
+  { key: 'comment', label: '收到的评论' },
+];
+
+const modeSheetVisible = ref(false);
+const modeItems = (Object.keys(MODE_LABELS) as ThemeMode[]).map((m) => ({
+  key: m,
+  title: MODE_LABELS[m],
+  desc: m === 'auto' ? '跟系统深浅色保持一致' : '',
+}));
+const currentMode = ref<ThemeMode>(getThemeMode());
+
+function onGrid(item: GridItem) {
+  if (item.url) {
+    uni.navigateTo({ url: item.url });
     return;
   }
-  uni.showToast({ title: `${item}：后续版本开发`, icon: 'none' });
+  uni.showToast({ title: `${item.key}：后续版本开发`, icon: 'none' });
+}
+
+function onPickMode(key: string) {
+  modeSheetVisible.value = false;
+  setThemeMode(key as ThemeMode);
+  currentMode.value = key as ThemeMode;
+  uni.showToast({ title: `外观：${MODE_LABELS[key as ThemeMode]}`, icon: 'none' });
 }
 
 function goLogin() {
@@ -101,30 +137,38 @@ function onLogout() {
       <text class="points">{{ user ? user.points.toFixed(2) + ' 积分' : '' }}</text>
     </view>
 
-    <!-- 会员横幅 -->
-    <view class="vip" hover-class="press-sink">
-      <text class="vip-text">会员尊享7项特权</text>
-      <text class="vip-btn" hover-class="press-dim">去兑换</text>
-    </view>
-
     <!-- 功能宫格 -->
     <view class="card grid-wrap">
-      <view v-for="(row, i) in grid" :key="i" class="grid-row">
-        <text v-for="item in row" :key="item" class="grid-item" hover-class="press-dim" @tap="onGrid(item)">{{ item }}</text>
+      <view class="grid">
+        <view v-for="g in grid" :key="g.key" class="grid-item" hover-class="press-dim" @tap="onGrid(g)">
+          <image class="grid-icon" :src="g.icon" mode="aspectFit" />
+          <text class="grid-label">{{ g.key }}</text>
+        </view>
       </view>
     </view>
 
     <!-- 通知列表 -->
     <view class="card notice-wrap">
-      <view v-for="n in notices" :key="n" class="notice-row" hover-class="press-bg">
-        <text class="notice">{{ n }}</text>
+      <view v-for="n in notices" :key="n.key" class="notice-row" hover-class="press-bg">
+        <text class="notice">{{ n.label }}</text>
         <text class="chev">›</text>
       </view>
     </view>
 
+    <!-- 设置 -->
     <view class="card notice-wrap">
-      <view class="notice-row" hover-class="press-bg" @tap="serverDialogVisible = true">
-        <text class="notice">服务器设置</text>
+      <view class="notice-row" hover-class="press-bg" @tap="modeSheetVisible = true">
+        <view class="row-with-icon">
+          <image class="row-icon" src="/static/icons/grid-moon.png" mode="aspectFit" />
+          <text class="notice">外观模式</text>
+        </view>
+        <text class="mode-value">{{ MODE_LABELS[currentMode] }} ›</text>
+      </view>
+      <view class="notice-row" hover-class="press-bg" @tap="openServerSetting">
+        <view class="row-with-icon">
+          <image class="row-icon" src="/static/icons/grid-server.png" mode="aspectFit" />
+          <text class="notice">服务器设置</text>
+        </view>
         <text class="chev">›</text>
       </view>
     </view>
@@ -134,6 +178,13 @@ function onLogout() {
         <text class="notice logout">退出登录</text>
       </view>
     </view>
+
+    <ActionSheet
+      :visible="modeSheetVisible"
+      :items="modeItems"
+      @select="onPickMode"
+      @close="modeSheetVisible = false"
+    />
 
     <InputDialog
       :visible="nameDialogVisible"
@@ -173,27 +224,26 @@ function onLogout() {
 .name { display: block; font-size: 36rpx; font-weight: 700; color: v-bind('theme.title'); }
 .hint { font-size: 24rpx; color: v-bind('theme.sub'); }
 .points { font-size: 26rpx; color: v-bind('theme.title'); }
-.vip {
-  display: flex; align-items: center; justify-content: space-between;
-  background: v-bind('theme.vipGradient'); border-radius: 24rpx; padding: 24rpx 32rpx;
-  margin: 24rpx 0;
-}
-.vip-text { color: #5c4a1e; font-size: 30rpx; font-weight: 700; }
-.vip-btn {
-  background: #3d3325; color: #e8c87e; font-size: 24rpx;
-  border-radius: 32rpx; padding: 8rpx 24rpx;
-}
+
 .card {
   background: v-bind('theme.card'); border-radius: 24rpx; margin-bottom: 16rpx;
   box-shadow: 0 2rpx 8rpx rgba(200, 160, 80, 0.1);
 }
-.grid-wrap { padding: 24rpx 0; }
-.grid-row { display: flex; justify-content: space-around; margin-bottom: 32rpx; }
-.grid-row:last-child { margin-bottom: 0; }
-.grid-item { font-size: 26rpx; color: v-bind('theme.title'); padding: 8rpx 12rpx; }
+.grid-wrap { padding: 28rpx 12rpx 12rpx; }
+.grid { display: flex; flex-wrap: wrap; }
+.grid-item {
+  width: 20%; display: flex; flex-direction: column; align-items: center; gap: 12rpx;
+  margin-bottom: 28rpx;
+}
+.grid-icon { width: 64rpx; height: 64rpx; }
+.grid-label { font-size: 24rpx; color: v-bind('theme.title'); }
+
 .notice-wrap { padding: 8rpx 32rpx; }
 .notice-row { display: flex; align-items: center; justify-content: space-between; padding: 28rpx 0; }
+.row-with-icon { display: flex; align-items: center; gap: 16rpx; }
+.row-icon { width: 40rpx; height: 40rpx; }
 .notice { font-size: 28rpx; color: v-bind('theme.title'); }
+.mode-value { font-size: 26rpx; color: v-bind('theme.sub'); }
 .logout { color: v-bind('theme.danger'); text-align: center; width: 100%; }
 .chev { color: v-bind('theme.sub'); font-size: 32rpx; }
 </style>

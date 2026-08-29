@@ -3,6 +3,8 @@ import { theme } from '@/styles/theme';
 import { fridgeApi, expiryText, UNIT_LABELS } from '@/api/fridge';
 import type { FridgeItemView, FridgeCategoryView, FridgeSummary } from '@/api/fridge';
 import { getCurrentKitchenId, loadKitchenCache } from '@/api/kitchen';
+import { fullUrl } from '@/api/dish';
+import { pushUnreadNotices } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import InputDialog from '@/components/input-dialog.vue';
@@ -53,6 +55,11 @@ async function load() {
     categories.value = cats;
     items.value = list;
     unread.value = unreadCount;
+    // 有未读临期提醒时，同步弹到系统通知栏（APK 端生效，幂等去重）
+    if (unreadCount > 0) {
+      const notices = await fridgeApi.notifications(kitchenId.value!).catch(() => []);
+      pushUnreadNotices(notices);
+    }
   } catch {
     items.value = [];
   } finally {
@@ -78,7 +85,7 @@ function toggleSearch() {
   }
 }
 
-function onSearch(e: { detail: { value: string } }) {
+function onSearch(e: any) {
   keyword.value = e.detail.value;
   load();
 }
@@ -103,9 +110,12 @@ function checkNow() {
   if (!kitchenId.value) return;
   fridgeApi.checkExpiry(kitchenId.value).then((n) => {
     uni.showToast({
-      title: n > 0 ? `发现 ${n} 种食材需要处理，已生成提醒` : '没有需要处理的食材',
+      title: n > 0 ? `发现 ${n} 种食材需要处理，已提醒` : '没有需要处理的食材',
       icon: 'none',
     });
+    if (n > 0) {
+      fridgeApi.notifications(kitchenId.value!).then((list) => pushUnreadNotices(list));
+    }
     load();
   });
 }
@@ -133,10 +143,6 @@ function clearAll() {
 function onAddCategory(name: string) {
   catDialogVisible.value = false;
   fridgeApi.createCategory(kitchenId.value!, name).then(() => load());
-}
-
-function tipSync() {
-  uni.showToast({ title: '多设备同步：后续版本', icon: 'none' });
 }
 
 function tipMatch() {
@@ -218,24 +224,26 @@ function tipMatch() {
             class="card item"
             :class="{ warning: i.state === 'expiring', danger: i.state === 'expired' }"
           >
-            <view class="item-head">
-              <text class="name">{{ i.name }}</text>
-              <text class="expire" :class="i.state">{{ expiryText(i) }}</text>
+            <view class="item-main">
+              <view class="item-head">
+                <text class="name">{{ i.name }}</text>
+                <text class="expire" :class="i.state">{{ expiryText(i) }}</text>
+              </view>
+              <text class="line">剩余数量：{{ i.quantity || '未填' }}</text>
+              <text v-if="i.remark" class="line">注：{{ i.remark }}</text>
+              <view class="item-foot">
+                <text class="meta">产自：{{ i.producedDate || '—' }}　保质期：{{ i.shelfLifeValue }}{{ UNIT_LABELS[i.shelfLifeUnit] }}</text>
+                <text class="match" hover-class="press-dim" @tap="goMatch(i)">匹配菜谱</text>
+              </view>
             </view>
-            <text class="line">剩余数量：{{ i.quantity || '未填' }}</text>
-            <text v-if="i.remark" class="line">注：{{ i.remark }}</text>
-            <view class="item-foot">
-              <text class="meta">产自：{{ i.producedDate || '—' }}　保质期：{{ i.shelfLifeValue }}{{ UNIT_LABELS[i.shelfLifeUnit] }}</text>
-              <text class="match" hover-class="press-dim" @tap="goMatch(i)">匹配菜谱</text>
-            </view>
+            <image v-if="i.imageUrl" class="item-photo" :src="fullUrl(i.imageUrl)" mode="aspectFill" />
           </view>
         </view>
       </view>
 
-      <!-- 底部操作栏 -->
+      <!-- 底部操作栏（所有修改实时提交后端，无需手动同步） -->
       <view class="bottom-ops">
         <text class="op" hover-class="press-dim" @tap="checkNow">临期通知</text>
-        <text class="op" hover-class="press-dim" @tap="tipSync">同步</text>
         <text class="op danger" hover-class="press-dim" @tap="clearAll">清仓</text>
         <text class="op" hover-class="press-dim" @tap="catDialogVisible = true">修改类别</text>
         <text class="op" hover-class="press-dim" @tap="tipMatch">匹配菜谱</text>
@@ -320,9 +328,11 @@ function tipMatch() {
 .empty-img { width: 150rpx; height: 150rpx; }
 .empty-tip { font-size: 26rpx; color: v-bind('theme.sub'); }
 
-.item { padding: 22rpx 26rpx; margin-bottom: 16rpx; border: 2rpx solid v-bind('theme.divider'); }
-.item.warning { border-color: v-bind('theme.warning'); background: #fffcf2; }
-.item.danger { border-color: v-bind('theme.danger'); background: #fff5f3; }
+.item { padding: 22rpx 26rpx; margin-bottom: 16rpx; border: 2rpx solid v-bind('theme.divider'); display: flex; gap: 20rpx; align-items: flex-start; }
+.item-main { flex: 1; min-width: 0; }
+.item-photo { width: 120rpx; height: 120rpx; border-radius: 14rpx; flex-shrink: 0; }
+.item.warning { border-color: v-bind('theme.warning'); background: v-bind('theme.warningLight'); }
+.item.danger { border-color: v-bind('theme.danger'); background: v-bind('theme.dangerLight'); }
 .item-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8rpx; }
 .name { font-size: 30rpx; font-weight: 600; color: v-bind('theme.title'); }
 .expire { font-size: 24rpx; }

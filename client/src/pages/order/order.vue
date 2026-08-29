@@ -235,7 +235,7 @@ function act(o: OrderView, action: 'complete' | 'refund-request' | 'refund-appro
   background: v-bind('theme.primaryLight');
   border-radius: 14rpx; padding: 14rpx 24rpx; margin-bottom: 20rpx;
 }
-.notice-text { font-size: 24rpx; color: #8a6a1f; }
+.notice-text { font-size: 24rpx; color: v-bind('theme.income'); }
 .empty { padding: 100rpx 0; display: flex; flex-direction: column; align-items: center; gap: 16rpx; }
 .empty-img { width: 170rpx; height: 170rpx; }
 .empty-tip { font-size: 26rpx; color: v-bind('theme.sub'); }
