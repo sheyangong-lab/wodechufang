@@ -89,7 +89,7 @@
           <button onclick="loadUsers()">搜索</button>
         </div>
         <table id="u-table">
-          <thead><tr><th>ID</th><th>昵称</th><th>手机号</th><th>积分</th><th>状态</th><th>注册时间</th><th>操作</th></tr></thead>
+          <thead><tr><th>ID</th><th>昵称</th><th>手机号</th><th>状态</th><th>注册时间</th><th>操作</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -170,12 +170,11 @@ async function loadUsers() {
   const list = await api('GET', '/users' + (kw ? '?keyword=' + encodeURIComponent(kw) : ''));
   $('u-table').querySelector('tbody').innerHTML = list.map(u => `
     <tr>
-      <td>${u.id}</td><td>${esc(u.nickname)}</td><td>${esc(u.phone)}</td><td>${u.points}</td>
+      <td>${u.id}</td><td>${esc(u.nickname)}</td><td>${esc(u.phone)}</td>
       <td>${u.status === 1 ? '<span class="tag on">正常</span>' : '<span class="tag off">封禁</span>'}</td>
       <td>${esc((u.createdAt || '').slice(0, 10))}</td>
       <td>
         <button class="${u.status === 1 ? 'danger' : 'ghost'}" style="padding:4px 10px;font-size:12px" onclick="banUser(${u.id}, ${u.status === 1})">${u.status === 1 ? '封禁' : '解封'}</button>
-        <button class="ghost" style="padding:4px 10px;font-size:12px" onclick="giftPoints(${u.id})">送积分</button>
       </td>
     </tr>`).join('');
 }
@@ -183,12 +182,6 @@ async function banUser(id, ban) {
   if (ban && !confirm('确定封禁该用户？')) return;
   await api('POST', `/users/${id}/ban`, { ban });
   toast(ban ? '已封禁' : '已解封'); loadUsers();
-}
-async function giftPoints(id) {
-  const p = Number(prompt('赠送积分（负数为扣减）:', '66'));
-  if (!p) return;
-  await api('POST', `/users/${id}/points`, { points: p });
-  toast('已操作'); loadUsers();
 }
 
 if (TOKEN) { showMain(); loadOverview(); } else { showLogin(); }

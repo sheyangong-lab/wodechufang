@@ -130,7 +130,7 @@ function fmtTime(iso: string) {
         <button class="cart-btn" hover-class="press-sink" @tap="addToCart">加入购物车</button>
       </view>
 
-      <!-- 店长操作 -->
+      <!-- 主账号/管理操作 -->
       <view v-if="isOwnerView" class="ops">
         <button class="op-btn primary" hover-class="press-sink" @tap="edit">编辑菜谱</button>
         <button class="op-btn" hover-class="press-dim" @tap="toggleShelf">

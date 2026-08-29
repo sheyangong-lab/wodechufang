@@ -329,7 +329,7 @@ public class FridgeService {
                 .orElseThrow(() -> new BusinessException(403, "你还不是该厨房的成员"));
         if (!KitchenMember.ROLE_OWNER.equals(m.getRole())
                 && !KitchenMember.ROLE_MEMBER.equals(m.getRole())) {
-            throw new BusinessException(403, "需要店长或管家权限");
+            throw new BusinessException(403, "需要主账号或成员权限");
         }
     }
 

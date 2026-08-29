@@ -8,6 +8,7 @@ import { onLoad } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import ActionSheet from '@/components/action-sheet.vue';
 import InputDialog from '@/components/input-dialog.vue';
+import CalendarPicker from '@/components/calendar-picker.vue';
 
 const kitchenId = ref<number | null>(getCurrentKitchenId());
 const type = ref<'EXPENSE' | 'INCOME'>('EXPENSE');
@@ -97,8 +98,11 @@ function goManage() {
   uni.navigateTo({ url: '/pages/ledger/categories' });
 }
 
-function pickDate(e: { detail: { value: string } }) {
-  date.value = e.detail.value;
+const dateCalVisible = ref(false);
+
+function onDatePick(v: string | null) {
+  dateCalVisible.value = false;
+  if (v) date.value = v;
 }
 
 function submit() {
@@ -147,11 +151,9 @@ function submit() {
         <text class="label req">金额（元）</text>
         <input v-model="amountYuan" class="input amount" type="digit" placeholder="0.00" placeholder-class="ph" />
       </view>
-      <view class="row">
+      <view class="row" hover-class="press-dim" @tap="dateCalVisible = true">
         <text class="label">日期</text>
-        <picker mode="date" :value="date" @change="pickDate">
-          <text class="value picker">{{ date }} ›</text>
-        </picker>
+        <text class="value picker">{{ date }} ›</text>
       </view>
       <view class="row">
         <text class="label">备注</text>
@@ -166,6 +168,12 @@ function submit() {
       :items="catItems"
       @select="onCatPick"
       @close="catSheetVisible = false"
+    />
+    <CalendarPicker
+      :visible="dateCalVisible"
+      :selected="date"
+      @select="onDatePick"
+      @close="dateCalVisible = false"
     />
     <InputDialog
       :visible="catDialogVisible"

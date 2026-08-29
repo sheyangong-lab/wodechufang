@@ -109,6 +109,20 @@ ATOK=$(echo "$LR" | python3 -c "import sys,json;print(json.load(sys.stdin)['data
 R=$(curl -s $BASE/api/kitchens/$KID/vip/redeem -X POST -H "$J" -H "$HA" -d '{"code":"X"}')
 check "VIP接口已下线(404)" "$R" '"code":404'
 
+# 7.5 成员账号: 自定义名字/职称/全权限
+MEMBER_UID=$(curl -s $BASE/api/kitchens/$KID -H "$HA" | python3 -c "import sys,json;print([m['userId'] for m in json.load(sys.stdin)['data']['members'] if m['role']=='MEMBER'][0])")
+R=$(curl -s -X PUT $BASE/api/kitchens/$KID/members/$MEMBER_UID -H "$J" -H "$HA" -d '{"alias":"老王家的","title":"主厨","fullAccess":1}')
+check "主账号设置成员名字/职称/全权限" "$R" '"alias":"老王家的"'
+R=$(curl -s $BASE/api/kitchens/$KID -H "$HB")
+check "成员列表回读alias/title/fullAccess" "$R" '"title":"主厨"'
+R=$(curl -s -X PUT $BASE/api/kitchens/$KID -H "$J" -H "$HB" -d '{"name":"成员改名厨房"}')
+check "全权限成员可改厨房信息" "$R" '"name":"成员改名厨房"'
+R=$(curl -s -X PUT $BASE/api/kitchens/$KID/members/$MEMBER_UID -H "$J" -H "$HA" -d '{"fullAccess":0}')
+R=$(curl -s -X PUT $BASE/api/kitchens/$KID -H "$J" -H "$HB" -d '{"name":"越权改名"}')
+check "收回全权限后成员改厨房信息应403" "$R" '"code":403'
+R=$(curl -s -X PUT $BASE/api/kitchens/$KID/members/$MEMBER_UID -H "$J" -H "$HB" -d '{"alias":"自己改名"}')
+check "成员可改自己的名字" "$R" '"alias":"自己改名"'
+
 # 8. 后台: 概览/封禁解封
 R=$(curl -s $BASE/api/admin/overview -H "Authorization: Bearer $ATOK")
 check "后台概览" "$R" '"users":'

@@ -31,9 +31,6 @@ public class User {
     private String openId;
 
     @Column(nullable = false)
-    private Integer points = 0;
-
-    @Column(nullable = false)
     private Integer status = 1;
 
     @Column(name = "created_at", nullable = false)
@@ -51,8 +48,6 @@ public class User {
     public void setAvatar(String avatar) { this.avatar = avatar; }
     public String getOpenId() { return openId; }
     public void setOpenId(String openId) { this.openId = openId; }
-    public Integer getPoints() { return points; }
-    public void setPoints(Integer points) { this.points = points; }
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
     public String getCreatedAt() { return createdAt; }

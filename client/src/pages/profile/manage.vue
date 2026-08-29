@@ -132,7 +132,7 @@ const gridC = ['分享广场', '经营分析', '备份导出', '回收站'];
 function onGrid(item: string) {
   switch (item) {
     case '厨房成员': return goMembers();
-    case '修改厨房': return isOwner.value ? editKitchen() : placeholder('修改厨房', '仅店长可操作');
+    case '修改厨房': return isOwner.value ? editKitchen() : placeholder('修改厨房', '需主账号或全权限');
     case '创建厨房': return goBind();
     default: return placeholder(item, ['克隆菜谱'].includes(item) ? 'M2' : '后续版本');
   }

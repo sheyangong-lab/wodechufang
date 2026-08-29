@@ -61,7 +61,7 @@ function pasteCode() {
       <view class="mode-card" :class="{ active: mode === 'create' }" hover-class="press-dim" @tap="pick('create')">
         <image class="mode-icon" src="/static/icons/pot.png" mode="aspectFit" />
         <text class="mode-title">创建厨房</text>
-        <text class="mode-desc">当店长，开菜单拉人下单</text>
+        <text class="mode-desc">当主账号，开菜单拉人下单</text>
       </view>
       <view class="mode-card" :class="{ active: mode === 'join' }" hover-class="press-dim" @tap="pick('join')">
         <image class="mode-icon" src="/static/icons/basket.png" mode="aspectFit" />
@@ -74,7 +74,7 @@ function pasteCode() {
       <block v-if="mode === 'create'">
         <text class="label">厨房名称</text>
         <input v-model="name" class="input" maxlength="20" placeholder="如：601宿舍小厨房" placeholder-class="ph" />
-        <text class="tip">创建后你将成为店长，可以添加菜谱、管理成员</text>
+        <text class="tip">创建后你将成为主账号，可以添加菜谱、管理成员</text>
       </block>
       <block v-else>
         <text class="label">厨房码</text>
@@ -82,7 +82,7 @@ function pasteCode() {
           <input v-model="code" class="input" placeholder="粘贴或输入店主分享的厨房码" placeholder-class="ph" />
           <text class="paste" hover-class="press-dim" @tap="pasteCode">粘贴</text>
         </view>
-        <text class="tip">厨房码在店长的「厨房页」右上角可查看复制</text>
+        <text class="tip">厨房码在主账号的「厨房页」右上角可查看复制</text>
       </block>
 
       <button class="btn-main" :disabled="submitting" hover-class="press-sink" @tap="submit">

@@ -94,7 +94,7 @@ public class AdminService {
         return userRepository.findAll().stream()
                 .filter(u -> match(keyword, u.getNickname(), u.getPhone(), u.getOpenId()))
                 .map(u -> new UserAdminView(u.getId(), u.getNickname(), u.getPhone(),
-                        u.getPoints(), u.getStatus(), u.getCreatedAt()))
+                        u.getStatus(), u.getCreatedAt()))
                 .toList();
     }
 
@@ -103,15 +103,6 @@ public class AdminService {
         User u = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(404, "用户不存在"));
         u.setStatus(ban ? 0 : 1);
-        userRepository.save(u);
-    }
-
-    /** 赠送积分。 */
-    @Transactional
-    public void grantPoints(Long userId, long points) {
-        User u = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(404, "用户不存在"));
-        u.setPoints(Math.max(0, u.getPoints() + (int) points));
         userRepository.save(u);
     }
 
@@ -141,5 +132,5 @@ public class AdminService {
                                    long memberCount, Integer status) {}
 
     public record UserAdminView(Long id, String nickname, String phone,
-                                Integer points, Integer status, String createdAt) {}
+                                Integer status, String createdAt) {}
 }

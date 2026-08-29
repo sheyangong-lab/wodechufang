@@ -5,7 +5,6 @@ export interface UserView {
   nickname: string;
   avatar: string | null;
   openId: string;
-  points: number;
   phoneMasked: string;
   createdAt: string;
 }

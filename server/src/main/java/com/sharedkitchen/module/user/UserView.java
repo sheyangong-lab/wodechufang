@@ -6,7 +6,6 @@ public record UserView(
         String nickname,
         String avatar,
         String openId,
-        Integer points,
         String phoneMasked,
         String createdAt
 ) {
@@ -16,6 +15,6 @@ public record UserView(
                 ? phone.substring(0, 3) + "****" + phone.substring(7)
                 : phone;
         return new UserView(u.getId(), u.getNickname(), u.getAvatar(), u.getOpenId(),
-                u.getPoints(), masked, u.getCreatedAt());
+                masked, u.getCreatedAt());
     }
 }

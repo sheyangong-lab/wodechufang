@@ -75,9 +75,13 @@ await sleep(800);
 const bodyText = await page.evaluate(() => document.body.innerText);
 ok('无会员横幅', !bodyText.includes('会员尊享'));
 ok('有外观模式入口', bodyText.includes('外观模式'));
-ok('宫格含厨房管理/任务大厅', bodyText.includes('厨房管理') && bodyText.includes('任务大厅'));
+ok('宫格含厨房管理', bodyText.includes('厨房管理'));
+ok('已删任务大厅/我的积分/新手教程/提点意见/平台客服',
+   !bodyText.includes('任务大厅') && !bodyText.includes('我的积分') && !bodyText.includes('新手教程')
+   && !bodyText.includes('提点意见') && !bodyText.includes('平台客服'));
+ok('积分显示已移除', !bodyText.includes('积分'));
 const iconCount = await page.locator('img[src*="grid-"], img[src*="chefhat"]').count();
-ok('宫格图标已加载(≥10)', iconCount >= 10, `实际${iconCount}`);
+ok('宫格图标已加载(≥5)', iconCount >= 5, `实际${iconCount}`);
 await page.screenshot({ path: `${SHOT_DIR}/01-profile-light.png`, fullPage: true });
 
 // 2. 切深色

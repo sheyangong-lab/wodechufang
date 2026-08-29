@@ -1,8 +1,13 @@
+import { LocalNotifications } from '@capacitor/local-notifications';
+
 /**
  * 系统通知栏推送 —— 仅 APK/Capacitor 环境生效，浏览器里静默跳过。
  * 场景：食材临期提醒从「站内通知」同步弹到系统消息栏。
  * 以站内通知 id 做幂等去重，避免同一提醒反复弹。
+ * 插件必须静态 import：uni-app h5 构建会把动态 import 生成
+ * /assets/../node_modules-xxx 路径，运行时 404 导致功能静默失效。
  */
+
 const SHOWN_KEY = 'sysNotifiedIds';
 
 export interface NoticeLike {
@@ -39,7 +44,6 @@ function saveShownIds(ids: number[]) {
 export async function pushSystemNotice(title: string, body: string, id: number): Promise<void> {
   if (!inCapacitor()) return;
   try {
-    const { LocalNotifications } = await import('@capacitor/local-notifications');
     let perm = await LocalNotifications.checkPermissions();
     if (perm.display !== 'granted') {
       perm = await LocalNotifications.requestPermissions();

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onLaunch, onShow, onHide } from "@dcloudio/uni-app";
 import { initTheme } from "@/styles/theme";
+import { App as CapApp } from "@capacitor/app";
 
 onLaunch(() => {
   initTheme();
@@ -22,18 +23,16 @@ function setupAndroidBackButton() {
   // #ifdef H5
   const cap = (globalThis as Record<string, any>).Capacitor;
   if (!cap?.isNativePlatform?.()) return;
-  Promise.all([import("@capacitor/app")])
-    .then(([{ App }]) => {
-      App.addListener("backButton", () => {
-        const pages = getCurrentPages();
-        if (pages.length > 1) {
-          uni.navigateBack({});
-        } else {
-          App.exitApp();
-        }
-      });
-    })
-    .catch(() => {});
+  // 注意：这里必须静态 import —— uni-app h5 构建会把动态 import 生成
+  // /assets/../node_modules-xxx 路径，运行时 404 导致返回键接管静默失效
+  CapApp.addListener("backButton", () => {
+    const pages = getCurrentPages();
+    if (pages.length > 1) {
+      uni.navigateBack({});
+    } else {
+      CapApp.exitApp();
+    }
+  });
   // #endif
 }
 </script>

@@ -18,14 +18,9 @@ interface GridItem {
 const user = ref<UserView | null>(loadUser());
 const grid: GridItem[] = [
   { key: '厨房管理', icon: '/static/icons/pan.png', url: '/pages/profile/manage' },
-  { key: '任务大厅', icon: '/static/icons/grid-mission.png' },
   { key: '厨房菜篮', icon: '/static/icons/basket.png' },
   { key: '饮食计划', icon: '/static/icons/grid-calendar.png' },
-  { key: '我的积分', icon: '/static/icons/grid-coin.png' },
   { key: '数据统计', icon: '/static/icons/grid-chart.png' },
-  { key: '新手教程', icon: '/static/icons/grid-book.png' },
-  { key: '提点意见', icon: '/static/icons/grid-chat.png' },
-  { key: '平台客服', icon: '/static/icons/grid-headset.png' },
   { key: '更多功能', icon: '/static/icons/grid-dots.png' },
 ];
 const notices = [
@@ -134,7 +129,6 @@ function onLogout() {
           <text class="hint">{{ user ? user.phoneMasked + ' · 点此改昵称 ›' : '登录后开启共享厨房 ›' }}</text>
         </view>
       </view>
-      <text class="points">{{ user ? user.points.toFixed(2) + ' 积分' : '' }}</text>
     </view>
 
     <!-- 功能宫格 -->
@@ -223,7 +217,6 @@ function onLogout() {
 .avatar-img { width: 60rpx; height: 60rpx; }
 .name { display: block; font-size: 36rpx; font-weight: 700; color: v-bind('theme.title'); }
 .hint { font-size: 24rpx; color: v-bind('theme.sub'); }
-.points { font-size: 26rpx; color: v-bind('theme.title'); }
 
 .card {
   background: v-bind('theme.card'); border-radius: 24rpx; margin-bottom: 16rpx;

@@ -74,7 +74,7 @@ public class KitchenService {
             KitchenMember member = new KitchenMember();
             member.setKitchenId(kitchen.getId());
             member.setUserId(userId);
-            // 情侣/家庭模式：加入即家人（共同管理菜单与订单）
+            // 凭码加入即成员账号（共同点单/做菜；主账号可授予全权限）
             member.setRole(KitchenMember.ROLE_MEMBER);
             member.setJoinedAt(Instant.now().toString());
             memberRepository.save(member);
@@ -110,26 +110,15 @@ public class KitchenService {
                 .collect(java.util.stream.Collectors.toMap(User::getId, u -> u));
 
         List<MemberView> memberViews = members.stream()
-                .map(m -> {
-                    User u = usersById.get(m.getUserId());
-                    return new MemberView(
-                            m.getUserId(),
-                            u == null ? "已注销用户" : u.getNickname(),
-                            m.getRole(),
-                            m.getJoinedAt());
-                })
+                .map(m -> toMemberView(m, usersById.get(m.getUserId())))
                 .toList();
         return new KitchenDetail(toView(kitchen, me.getRole(), null), memberViews);
     }
 
-    /** 店长修改厨房信息（名称/公告）。 */
+    /** 修改厨房信息（名称/公告）：主账号或被授予全权限的成员。 */
     @Transactional
     public KitchenView update(Long userId, Long kitchenId, String name, String announcement) {
-        KitchenMember me = memberRepository.findByKitchenIdAndUserId(kitchenId, userId)
-                .orElseThrow(() -> new BusinessException(403, "你还不是该厨房的成员"));
-        if (!KitchenMember.ROLE_OWNER.equals(me.getRole())) {
-            throw new BusinessException(403, "只有店长可以修改厨房信息");
-        }
+        KitchenMember me = requireFullAccess(kitchenId, userId, "只有主账号或全权限成员可以修改厨房信息");
         Kitchen kitchen = kitchenRepository.findById(kitchenId)
                 .orElseThrow(() -> new BusinessException(404, "厨房不存在"));
         if (name != null && !name.isBlank()) {
@@ -149,17 +138,71 @@ public class KitchenService {
         return toView(kitchen, me.getRole(), null);
     }
 
-    /** 店长解散厨房：连同成员关系一并删除。 */
+    /** 主账号解散厨房：连同成员关系一并删除。 */
     @Transactional
     public void dissolve(Long userId, Long kitchenId) {
         KitchenMember me = memberRepository.findByKitchenIdAndUserId(kitchenId, userId)
                 .orElseThrow(() -> new BusinessException(403, "你还不是该厨房的成员"));
-        if (!KitchenMember.ROLE_OWNER.equals(me.getRole())) {
-            throw new BusinessException(403, "只有店长可以解散厨房");
+        if (!me.isOwner()) {
+            throw new BusinessException(403, "只有主账号可以解散厨房");
         }
         List<KitchenMember> members = memberRepository.findByKitchenIdOrderByJoinedAtAsc(kitchenId);
         memberRepository.deleteAll(members);
         kitchenRepository.deleteById(kitchenId);
+    }
+
+    // ---------- 成员管理：自定义名字/职称 + 全权限授予 ----------
+
+    /**
+     * 编辑成员的自定义名字/职称/全权限。
+     * 权限：主账号可改任何成员（含全权限开关）；成员只能改自己的名字与职称。
+     */
+    @Transactional
+    public MemberView updateMember(Long userId, Long kitchenId, Long targetUserId,
+                                   String alias, String title, Integer fullAccess) {
+        KitchenMember me = memberRepository.findByKitchenIdAndUserId(kitchenId, userId)
+                .orElseThrow(() -> new BusinessException(403, "你还不是该厨房的成员"));
+        KitchenMember target = memberRepository.findByKitchenIdAndUserId(kitchenId, targetUserId)
+                .orElseThrow(() -> new BusinessException(404, "成员不存在"));
+        boolean selfEdit = userId.equals(targetUserId);
+        if (!me.isOwner() && !selfEdit) {
+            throw new BusinessException(403, "只有主账号可以编辑其他成员");
+        }
+        if (!selfEdit || me.isOwner()) {
+            // 主账号改别人（或改自己）时可带全权限；自己不是主账号时改自己不带全权限语义
+            if (fullAccess != null && me.isOwner() && !selfEdit) {
+                if (target.isOwner()) {
+                    throw new BusinessException("主账号本身就是全权限，无需设置");
+                }
+                target.setFullAccess(fullAccess == 1 ? 1 : 0);
+            }
+        }
+        if (alias != null) {
+            String trimmed = alias.trim();
+            if (trimmed.length() > 20) {
+                throw new BusinessException("自定义名字最多20个字");
+            }
+            target.setAlias(trimmed);
+        }
+        if (title != null) {
+            String trimmed = title.trim();
+            if (trimmed.length() > 10) {
+                throw new BusinessException("职称最多10个字");
+            }
+            target.setTitle(trimmed);
+        }
+        memberRepository.save(target);
+        return toMemberView(target, userRepository.findById(targetUserId).orElse(null));
+    }
+
+    /** 厨房管理操作（改信息等）要求主账号或全权限成员。 */
+    private KitchenMember requireFullAccess(Long kitchenId, Long userId, String message) {
+        KitchenMember m = memberRepository.findByKitchenIdAndUserId(kitchenId, userId)
+                .orElseThrow(() -> new BusinessException(403, "你还不是该厨房的成员"));
+        if (!m.hasFullAccess()) {
+            throw new BusinessException(403, message);
+        }
+        return m;
     }
 
     private KitchenView toView(Kitchen k, String myRole, String ownerNickname) {
@@ -186,7 +229,17 @@ public class KitchenService {
             Long id, String name, String code, Integer level,
             String announcement, long memberCount, String myRole, String ownerNickname) {}
 
-    public record MemberView(Long userId, String nickname, String role, String joinedAt) {}
+    public record MemberView(Long userId, String nickname, String role, String joinedAt,
+                             String alias, String title, Integer fullAccess) {}
+
+    private MemberView toMemberView(KitchenMember m, User u) {
+        return new MemberView(m.getUserId(),
+                u == null ? "已注销用户" : u.getNickname(),
+                m.getRole(), m.getJoinedAt(),
+                m.getAlias() == null ? "" : m.getAlias(),
+                m.getTitle() == null ? "" : m.getTitle(),
+                m.getFullAccess() == null ? 0 : m.getFullAccess());
+    }
 
     public record KitchenDetail(KitchenView kitchen, List<MemberView> members) {}
 }

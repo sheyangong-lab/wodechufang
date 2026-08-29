@@ -167,7 +167,7 @@ public class LedgerService {
         }
     }
 
-    /** 手动记一笔（店长/管家）。 */
+    /** 手动记一笔（主账号/成员账号）。 */
     @Transactional
     public LedgerEntryView addManual(Long userId, Long kitchenId, ManualEntryReq req) {
         requireMember(kitchenId, userId);
@@ -377,7 +377,7 @@ public class LedgerService {
                 .orElseThrow(() -> new BusinessException(403, "你还不是该厨房的成员"));
         if (!KitchenMember.ROLE_OWNER.equals(m.getRole())
                 && !KitchenMember.ROLE_MEMBER.equals(m.getRole())) {
-            throw new BusinessException(403, "需要店长或管家权限");
+            throw new BusinessException(403, "需要主账号或成员权限");
         }
     }
 

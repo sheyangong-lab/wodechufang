@@ -6,6 +6,7 @@ import { getCurrentKitchenId } from '@/api/kitchen';
 import { getApiBase } from '@/api/config';
 import { onShow } from '@dcloudio/uni-app';
 import { computed, nextTick, ref, watch } from 'vue';
+import CalendarPicker from '@/components/calendar-picker.vue';
 
 const kitchenId = ref<number | null>(getCurrentKitchenId());
 const month = ref(new Date().toISOString().slice(0, 7));
@@ -14,6 +15,18 @@ const entries = ref<LedgerEntryView[]>([]);
 const stats = ref<DishStat[]>([]);
 const showStats = ref(false);
 const loading = ref(true);
+const calVisible = ref(false);
+const calSelected = computed(() => `${month.value}-01`);
+
+function onCalPick(date: string | null) {
+  calVisible.value = false;
+  if (!date) return;
+  const m = date.slice(0, 7);
+  if (m !== month.value) {
+    month.value = m;
+    load();
+  }
+}
 
 const cards = computed(() => [
   { label: '收入', value: summary.value.income, color: theme.income },
@@ -277,10 +290,10 @@ function delEntry(e: LedgerEntryView) {
 
 <template>
   <view class="page">
-    <!-- 月份切换 -->
+    <!-- 月份切换（点月份打开日历直接跳月） -->
     <view class="month-row">
       <text class="arrow" hover-class="press-dim" @tap="prevMonth">‹</text>
-      <text class="month">{{ month }}</text>
+      <text class="month" hover-class="press-dim" @tap="calVisible = true">{{ month }} ▾</text>
       <text class="arrow" hover-class="press-dim" @tap="nextMonth">›</text>
     </view>
 
@@ -367,6 +380,13 @@ function delEntry(e: LedgerEntryView) {
       <image class="empty-img" src="/static/icons/empty-ledger.png" mode="aspectFit" />
       <text class="empty-tip">{{ month }} 还没有收支记录</text>
     </view>
+
+    <CalendarPicker
+      :visible="calVisible"
+      :selected="calSelected"
+      @select="onCalPick"
+      @close="calVisible = false"
+    />
   </view>
 </template>
 

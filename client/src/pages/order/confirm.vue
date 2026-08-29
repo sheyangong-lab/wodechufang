@@ -49,7 +49,7 @@ function submit() {
     })
     .then(() => {
       cart.clear();
-      uni.showToast({ title: '下单成功，等店长开灶！', icon: 'none' });
+      uni.showToast({ title: '下单成功，等主账号开灶！', icon: 'none' });
       setTimeout(() => uni.switchTab({ url: '/pages/order/order' }), 900);
     })
     .finally(() => (submitting.value = false));
@@ -103,7 +103,7 @@ function submit() {
     <button class="btn-submit" :disabled="submitting" hover-class="press-sink" @tap="submit">
       提交订单（{{ cart.count }} 件）
     </button>
-    <text class="hint">提交后按店长当前菜价结算，改价以服务端为准</text>
+    <text class="hint">提交后按当前菜价结算，改价以服务端为准</text>
   </view>
 </template>
 

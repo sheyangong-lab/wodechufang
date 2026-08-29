@@ -16,6 +16,12 @@ export interface MemberView {
   nickname: string;
   role: string;
   joinedAt: string;
+  /** 自定义名字（空=用昵称） */
+  alias: string;
+  /** 自定义职称（空=按角色显示） */
+  title: string;
+  /** 全权限：1=可代主账号管理厨房 */
+  fullAccess: number;
 }
 
 export interface KitchenDetail {
@@ -24,8 +30,8 @@ export interface KitchenDetail {
 }
 
 export const ROLE_LABELS: Record<string, string> = {
-  OWNER: '店长',
-  MEMBER: '家人',
+  OWNER: '主账号',
+  MEMBER: '成员',
 };
 
 /** 当前厨房 id 的本地持久化（切换厨房 = 改这里） */
@@ -85,4 +91,9 @@ export const kitchenApi = {
     request<KitchenView>({ url: `/api/kitchens/${id}`, method: 'PUT', data }),
   dissolve: (id: number) =>
     request<void>({ url: `/api/kitchens/${id}`, method: 'DELETE' }),
+  /** 编辑成员：主账号可改任何成员（含全权限）；成员只能改自己的名字/职称 */
+  updateMember: (kitchenId: number, userId: number, data: { alias?: string; title?: string; fullAccess?: number }) =>
+    request<MemberView>({
+      url: `/api/kitchens/${kitchenId}/members/${userId}`, method: 'PUT', data,
+    }),
 };

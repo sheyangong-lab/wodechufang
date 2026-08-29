@@ -1,7 +1,7 @@
 // 通过 CDP(原生WebSocket) 在手机 WebView 里执行 JS：登录→注入存储→跳厨房页
 const WS_URL = 'ws://127.0.0.1:9223/devtools/page/5F4EFC981ED2121DF1A5574779E4D1DB'
   || 'ws://localhost:9222/devtools/page/DF22005595C19601D8E65F829BF51F8F';
-const API = 'http://192.168.1.187:8080';
+const API = 'http://192.168.1.111:8080';
 
 const ws = new WebSocket(WS_URL);
 let id = 0;

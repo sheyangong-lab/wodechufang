@@ -144,7 +144,7 @@ function clear() {
   animation: fadeIn 0.2s ease both;
 }
 .panel {
-  background: #fff;
+  background: v-bind('theme.card');
   border-radius: 32rpx 32rpx 0 0;
   padding: 32rpx 32rpx calc(32rpx + env(safe-area-inset-bottom));
   animation: slideUp 0.25s ease both;

@@ -68,10 +68,4 @@ public class AdminController {
         return ApiResponse.ok();
     }
 
-    @PostMapping("/users/{id}/points")
-    public ApiResponse<Void> grantPoints(
-            @PathVariable Long id, @RequestBody Map<String, Long> req) {
-        adminService.grantPoints(id, req.getOrDefault("points", 0L));
-        return ApiResponse.ok();
-    }
 }

@@ -238,7 +238,7 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
     <view v-else-if="!hasKitchen" class="card state-card">
       <image class="state-img" src="/static/icons/empty-kitchen.png" mode="aspectFit" />
       <text class="state-title">还没有厨房</text>
-      <text class="state-desc">创建一个厨房当店长，或输入朋友的厨房码加入</text>
+      <text class="state-desc">创建一个厨房当主账号，或输入朋友的厨房码加入</text>
       <view class="state-btns">
         <button class="btn-main half" hover-class="press-sink" @tap="goBind">创建 / 加入厨房</button>
       </view>

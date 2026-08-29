@@ -7,6 +7,7 @@
  * - 切模式调用 setThemeMode()，内部同步导航栏/TabBar 与全局 CSS 变量。
  */
 import { reactive } from 'vue';
+import { StatusBar } from '@capacitor/status-bar';
 
 export type ThemeMode = 'light' | 'dark' | 'auto';
 
@@ -161,9 +162,8 @@ function applyChrome(dark: boolean) {
   // #ifdef H5
   const cap = (globalThis as Record<string, any>).Capacitor;
   if (cap?.isNativePlatform?.() && cap.getPlatform?.() === 'android') {
-    import('@capacitor/status-bar')
-      .then(({ StatusBar }) => StatusBar.setBackgroundColor({ color: dark ? '#16130F' : '#FFFBF2' }))
-      .catch(() => {});
+    // 静态 import（动态 import 在 uni-app h5 构建下 chunk 路径 404）
+    StatusBar.setBackgroundColor({ color: dark ? '#16130F' : '#FFFBF2' }).catch(() => {});
   }
   // #endif
 }

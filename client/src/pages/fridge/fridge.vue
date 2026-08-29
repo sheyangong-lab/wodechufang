@@ -253,7 +253,7 @@ function tipMatch() {
     <!-- 顾客视角 -->
     <view v-else class="card empty big">
       <image class="empty-img" src="/static/icons/basket.png" mode="aspectFit" />
-      <text class="empty-tip">食材冰箱仅店长和管家可见</text>
+      <text class="empty-tip">食材冰箱仅主账号和成员可见</text>
     </view>
 
     <InputDialog

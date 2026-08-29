@@ -163,6 +163,66 @@ def pan(color_body, color_accent, name):
     save(im, name)
 
 
+def pan3d(name, rim, body, body_in, hi, dark, egg_white, yolk, yolk_hi, shadow):
+    """斜 45° 平底锅 · 伪3D 版。
+
+    俯视光影：左上光源 → 锅沿深色、锅内面左亮右暗、
+    右下落影、左上高光弧、手柄上亮下暗 + 根部铆钉。
+    全部用多层椭圆/弧线近似径向光影。
+    """
+    im, d = canvas()
+    cx, cy, r = 38 * SS, 58 * SS, 23 * SS
+
+    # ---- 手柄（先画，压在锅沿下面）----
+    hx1, hy1 = cx + int(r*0.72), cy - int(r*0.72)   # 锅沿起点
+    hx2, hy2 = 80 * SS, 16 * SS                      # 末端
+    # 手柄落影
+    rounded_line(d, [(hx1 + 2*SS, hy1 + 3*SS), (hx2 + 2*SS, hy2 + 3*SS)], shadow, width=8*SS)
+    # 手柄暗面（下侧粗线）
+    rounded_line(d, [(hx1, hy1 + 1*SS), (hx2, hy2 + 1*SS)], dark, width=8*SS)
+    # 手柄亮面（上侧细线，留出暗边形成圆柱感）
+    rounded_line(d, [(hx1, hy1 - 1*SS), (hx2, hy2 - 1*SS)], body, width=4*SS)
+    # 手柄末端高光点
+    d.ellipse([hx2 - 2*SS, hy2 - 4*SS, hx2 + 2*SS, hy2], fill=hi)
+    # 手柄根部铆钉
+    rv = 3 * SS
+    d.ellipse([hx1 - rv, hy1 - rv, hx1 + rv, hy1 + rv], fill=rim)
+    d.ellipse([hx1 - rv + 1*SS, hy1 - rv + 1*SS, hx1 + rv, hy1 + rv], fill=hi)
+
+    # ---- 锅体 ----
+    # 落影（右下偏移）
+    d.ellipse([cx - r + 3*SS, cy - r + 4*SS, cx + r + 3*SS, cy + r + 4*SS], fill=shadow)
+    # 锅沿（外圈，深色环）
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=rim)
+    # 锅内面（缩进环宽）
+    inset = 5 * SS
+    d.ellipse([cx - r + inset, cy - r + inset, cx + r - inset, cy + r - inset], fill=dark)
+    # 内面亮区（再缩进一层，向左上偏移 → 右下留暗边形成凹陷光影）
+    d.ellipse([cx - r + inset + 1*SS, cy - r + inset, cx + r - inset - 1*SS, cy + r - inset - 2*SS], fill=body)
+    d.ellipse([cx - r + inset + 2*SS, cy - r + inset, cx + r - inset - 3*SS, cy + r - inset - 4*SS], fill=body_in)
+    # 左上高光弧（锅内面左上缘）
+    d.arc([cx - r + inset + 1*SS, cy - r + inset + 1*SS,
+           cx + r - inset - 1*SS, cy + r - inset - 1*SS],
+          start=200, end=305, fill=hi, width=3*SS)
+    # 锅沿左上高光
+    d.arc([cx - r, cy - r, cx + r, cy + r], start=210, end=300, fill=hi, width=2*SS)
+
+    # ---- 煎蛋（蛋白 + 蛋黄 + 蛋黄高光）----
+    ex, ey = cx - 2*SS, cy + 1*SS
+    # 蛋白（不规则圆：两瓣椭圆叠加）
+    d.ellipse([ex - 11*SS, ey - 9*SS, ex + 11*SS, ey + 10*SS], fill=egg_white)
+    d.ellipse([ex - 13*SS, ey - 4*SS, ex + 8*SS, ey + 9*SS], fill=egg_white)
+    d.ellipse([ex - 6*SS, ey - 12*SS, ex + 12*SS, ey + 4*SS], fill=egg_white)
+    # 蛋白暗边（右下细弧）
+    d.arc([ex - 11*SS, ey - 9*SS, ex + 11*SS, ey + 10*SS], start=30, end=140, fill=dark, width=2*SS)
+    # 蛋黄
+    yr = 6 * SS
+    d.ellipse([ex - yr, ey - yr - 1*SS, ex + yr, ey + yr - 1*SS], fill=yolk)
+    # 蛋黄高光点
+    d.ellipse([ex - 3*SS, ey - 4*SS, ex - 1*SS, ey - 2*SS], fill=yolk_hi)
+    save(im, name)
+
+
 if __name__ == '__main__':
     clipboard()
     calendar()
@@ -174,6 +234,28 @@ if __name__ == '__main__':
     dots()
     moon()
     server()
-    # 平底锅：灰色常规版（宫格/tab 未选中）+ 琥珀选中版
+    # 平底锅：扁平灰版（保留备用）+ 伪3D 双色版（正式使用）
     pan(GRAY, AMBER, 'pan')
     pan(AMBER, GRAY, 'pan-active')
+    # 伪3D 常规版：暖灰锅体 + 琥珀蛋黄
+    pan3d('pan',
+          rim=(111, 98, 80, 255),        # 锅沿深暖灰
+          body=(150, 135, 113, 255),     # 锅内面中灰
+          body_in=(169, 155, 134, 255),  # 内面亮区
+          hi=(206, 195, 175, 255),       # 高光
+          dark=(126, 113, 94, 255),      # 暗面
+          egg_white=(255, 251, 242, 255),
+          yolk=AMBER,
+          yolk_hi=(255, 226, 170, 255),
+          shadow=(111, 98, 80, 70))
+    # 伪3D 选中版：琥珀锅体 + 奶白蛋白
+    pan3d('pan-active',
+          rim=(168, 111, 28, 255),       # 深琥珀沿
+          body=(239, 166, 60, 255),
+          body_in=(248, 193, 92, 255),
+          hi=(255, 224, 160, 255),
+          dark=(203, 137, 40, 255),
+          egg_white=(255, 251, 242, 255),
+          yolk=(255, 255, 255, 255),
+          yolk_hi=(239, 166, 60, 255),
+          shadow=(168, 111, 28, 70))

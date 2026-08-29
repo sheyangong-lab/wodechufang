@@ -71,4 +71,16 @@ public class KitchenController {
         kitchenService.dissolve(userId, id);
         return ApiResponse.ok();
     }
+
+    public record MemberUpdateReq(String alias, String title, Integer fullAccess) {}
+
+    /** 编辑成员：自定义名字/职称；主账号可额外设置全权限。 */
+    @org.springframework.web.bind.annotation.PutMapping("/{id}/members/{userId}")
+    public ApiResponse<KitchenService.MemberView> updateMember(
+            HttpServletRequest request, @PathVariable Long id, @PathVariable Long userId,
+            @RequestBody MemberUpdateReq req) {
+        Long me = (Long) request.getAttribute(JwtAuthFilter.ATTR_USER_ID);
+        return ApiResponse.ok(kitchenService.updateMember(
+                me, id, userId, req.alias(), req.title(), req.fullAccess()));
+    }
 }

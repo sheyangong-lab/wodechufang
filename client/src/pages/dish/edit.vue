@@ -38,7 +38,7 @@ const calories = ref('');
 
 const difficulties = ['简单', '有点难度', '压力略大'];
 const starTexts = ['', '尝鲜', '家常', '拿手', '招牌', '镇店'];
-const priceHint = computed(() => (multiSpec.value ? '多规格已开启，按规格定价' : '可用于开启积分支付'));
+const priceHint = computed(() => (multiSpec.value ? '多规格已开启，按规格定价' : '价格会显示在点单页'));
 
 onLoad((query) => {
   kitchenId.value = getCurrentKitchenId();

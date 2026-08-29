@@ -95,14 +95,14 @@ public class DishService {
                 .toList();
     }
 
-    /** 修改模式：全部未删除（含下架），仅店长。 */
+    /** 修改模式：全部未删除（含下架），仅管理端。 */
     public List<DishView> listManage(Long userId, Long kitchenId) {
         requireOwner(kitchenId, userId);
         return dishRepository.findByKitchenIdAndDeletedOrderByUpdatedAtDesc(kitchenId, 0)
                 .stream().map(this::toView).toList();
     }
 
-    /** 回收站，仅店长。 */
+    /** 回收站，仅管理端。 */
     public List<DishView> listRecycle(Long userId, Long kitchenId) {
         requireOwner(kitchenId, userId);
         return dishRepository.findByKitchenIdAndDeletedOrderByUpdatedAtDesc(kitchenId, 1)
@@ -182,7 +182,7 @@ public class DishService {
                 .toList();
     }
 
-    /** 克隆菜谱：把广场上的菜谱复制一份到自己厨房（校验家人权限与菜品额度）。 */
+    /** 克隆菜谱：把广场上的菜谱复制一份到自己厨房（校验成员权限）。 */
     @Transactional
     public DishView cloneDish(Long userId, Long targetKitchenId, Long sourceDishId) {
         Dish source = requireDish(sourceDishId);
@@ -208,7 +208,7 @@ public class DishService {
                 source.getDifficulty(),
                 source.getCalories(),
                 false);
-        return create(userId, targetKitchenId, req); // create 内含家人权限与额度校验
+        return create(userId, targetKitchenId, req); // create 内含成员权限校验
     }
 
     private List<com.sharedkitchen.module.dish.DishReq.Spec> parseSpecsList(String specsJson) {
@@ -290,13 +290,13 @@ public class DishService {
                 .orElseThrow(() -> new BusinessException(404, "厨房不存在"));
     }
 
-    /** 菜单管理类操作：店长（主账号）和管家（成员）都可以；顾客不行。 */
+    /** 菜单管理类操作：主账号和成员账号都可以。 */
     private void requireOwner(Long kitchenId, Long userId) {
         KitchenMember m = memberRepository.findByKitchenIdAndUserId(kitchenId, userId)
                 .orElseThrow(() -> new BusinessException(403, "你还不是该厨房的成员"));
         if (!KitchenMember.ROLE_OWNER.equals(m.getRole())
                 && !KitchenMember.ROLE_MEMBER.equals(m.getRole())) {
-            throw new BusinessException(403, "需要店长或管家权限");
+            throw new BusinessException(403, "需要主账号或成员权限");
         }
     }
 

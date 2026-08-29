@@ -35,7 +35,7 @@ const announcement = computed(() => loadKitchenCache()?.announcement || '');
 onShow(() => {
   kitchenId.value = getCurrentKitchenId();
   const cache = loadKitchenCache();
-  // 店长和家人都有订单处理权（情侣/家庭模式）
+  // 主账号和成员都有订单处理权
   canManage.value = ['OWNER', 'MEMBER'].includes(cache?.myRole || '');
   load();
 });
