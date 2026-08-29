@@ -23,23 +23,27 @@ import org.springframework.transaction.annotation.Transactional;
 public class LedgerService {
 
     private static final String EXPORT_DIR = "./data/exports";
-    private static final List<String> EXPENSE_CATEGORIES =
+    /** 新厨房首次打开账本时懒加载的默认分类。 */
+    private static final List<String> DEFAULT_EXPENSE_CATEGORIES =
             List.of("食材采购", "厨房设备", "水电燃气", "其他");
-    private static final List<String> INCOME_CATEGORIES =
+    private static final List<String> DEFAULT_INCOME_CATEGORIES =
             List.of("菜品销售", "其他收入");
 
     private final LedgerEntryRepository ledgerRepository;
+    private final LedgerCategoryRepository categoryRepository;
     private final KitchenMemberRepository memberRepository;
     private final OrderItemRepository orderItemRepository;
     private final com.sharedkitchen.module.order.OrderRepository orderRepository;
     private final UserRepository userRepository;
 
     public LedgerService(LedgerEntryRepository ledgerRepository,
+                         LedgerCategoryRepository categoryRepository,
                          KitchenMemberRepository memberRepository,
                          OrderItemRepository orderItemRepository,
                          com.sharedkitchen.module.order.OrderRepository orderRepository,
                          UserRepository userRepository) {
         this.ledgerRepository = ledgerRepository;
+        this.categoryRepository = categoryRepository;
         this.memberRepository = memberRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderRepository = orderRepository;
@@ -86,6 +90,83 @@ public class LedgerService {
         ledgerRepository.save(e);
     }
 
+    // ---------- 账本分类（每厨房可自定义） ----------
+
+    /** 分类列表；厨房首次使用时懒加载默认分类。 */
+    @Transactional
+    public List<LedgerCategoryView> listCategories(Long userId, Long kitchenId) {
+        requireMember(kitchenId, userId);
+        if (categoryRepository.countByKitchenId(kitchenId) == 0) {
+            seedDefaultCategories(kitchenId);
+        }
+        return categoryRepository.findByKitchenIdOrderByTypeAscIdAsc(kitchenId).stream()
+                .map(c -> new LedgerCategoryView(c.getId(), c.getType(), c.getName()))
+                .toList();
+    }
+
+    @Transactional
+    public LedgerCategoryView createCategory(Long userId, Long kitchenId, String type, String name) {
+        requireMember(kitchenId, userId);
+        if (!LedgerCategory.TYPE_INCOME.equals(type) && !LedgerCategory.TYPE_EXPENSE.equals(type)) {
+            throw new BusinessException("分类类型只能是收入或支出");
+        }
+        if (name == null || name.isBlank()) {
+            throw new BusinessException("请输入分类名称");
+        }
+        String trimmed = name.trim();
+        if (trimmed.length() > 10) {
+            throw new BusinessException("分类名最多10个字");
+        }
+        boolean exists = categoryRepository.findByKitchenIdOrderByTypeAscIdAsc(kitchenId).stream()
+                .anyMatch(c -> c.getType().equals(type) && c.getName().equals(trimmed));
+        if (exists) {
+            throw new BusinessException("该分类已存在");
+        }
+        if (categoryRepository.countByKitchenId(kitchenId) >= 40) {
+            throw new BusinessException("分类最多 40 个");
+        }
+        LedgerCategory c = new LedgerCategory();
+        c.setKitchenId(kitchenId);
+        c.setType(type);
+        c.setName(trimmed);
+        c.setCreatedAt(now());
+        categoryRepository.save(c);
+        return new LedgerCategoryView(c.getId(), c.getType(), c.getName());
+    }
+
+    /** 删除分类；历史流水按名称留存，不受影响。 */
+    @Transactional
+    public void deleteCategory(Long userId, Long kitchenId, Long categoryId) {
+        requireMember(kitchenId, userId);
+        LedgerCategory c = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new BusinessException(404, "分类不存在"));
+        if (!c.getKitchenId().equals(kitchenId)) {
+            throw new BusinessException(403, "无权操作该分类");
+        }
+        categoryRepository.delete(c);
+    }
+
+    private void seedDefaultCategories(Long kitchenId) {
+        String t = now();
+        List<String> all = new ArrayList<>(DEFAULT_EXPENSE_CATEGORIES);
+        for (String name : all) {
+            LedgerCategory c = new LedgerCategory();
+            c.setKitchenId(kitchenId);
+            c.setType(LedgerCategory.TYPE_EXPENSE);
+            c.setName(name);
+            c.setCreatedAt(t);
+            categoryRepository.save(c);
+        }
+        for (String name : DEFAULT_INCOME_CATEGORIES) {
+            LedgerCategory c = new LedgerCategory();
+            c.setKitchenId(kitchenId);
+            c.setType(LedgerCategory.TYPE_INCOME);
+            c.setName(name);
+            c.setCreatedAt(t);
+            categoryRepository.save(c);
+        }
+    }
+
     /** 手动记一笔（店长/管家）。 */
     @Transactional
     public LedgerEntryView addManual(Long userId, Long kitchenId, ManualEntryReq req) {
@@ -94,7 +175,7 @@ public class LedgerService {
                 && !LedgerEntry.TYPE_EXPENSE.equals(req.type())) {
             throw new BusinessException("类型只能是收入或支出");
         }
-        validCategory(req.type(), req.category());
+        validCategory(kitchenId, req.type(), req.category());
         if (req.amountFen() == null || req.amountFen() <= 0) {
             throw new BusinessException("金额必须大于 0");
         }
@@ -244,14 +325,6 @@ public class LedgerService {
         }
     }
 
-    public List<String> expenseCategories() {
-        return EXPENSE_CATEGORIES;
-    }
-
-    public List<String> incomeCategories() {
-        return INCOME_CATEGORIES;
-    }
-
     private List<Order> completedOrdersOfMonth(Long kitchenId, String month) {
         YearMonth ym = YearMonth.parse(month);
         String from = ym.atDay(1).toString();
@@ -268,12 +341,18 @@ public class LedgerService {
         return java.math.BigDecimal.valueOf(amountFen == null ? 0 : amountFen, 2).toPlainString();
     }
 
-    private void validCategory(String type, String category) {
-        List<String> allowed = LedgerEntry.TYPE_EXPENSE.equals(type)
-                ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
-        if (category != null && !category.isBlank() && !allowed.contains(category.trim())
-                && !"其他".equals(category.trim())) {
-            throw new BusinessException("不支持的分类");
+    /** 分类须属于该厨房该类型；不传时按类型落到默认分类。 */
+    private void validCategory(Long kitchenId, String type, String category) {
+        if (category == null || category.isBlank()) {
+            return; // 服务端落默认值
+        }
+        if (categoryRepository.countByKitchenId(kitchenId) == 0) {
+            seedDefaultCategories(kitchenId);
+        }
+        boolean allowed = categoryRepository.findByKitchenIdOrderByTypeAscIdAsc(kitchenId).stream()
+                .anyMatch(c -> c.getType().equals(type) && c.getName().equals(category.trim()));
+        if (!allowed) {
+            throw new BusinessException("不支持的分类，可在分类管理中添加");
         }
     }
 
@@ -313,6 +392,8 @@ public class LedgerService {
 
     public record ManualEntryReq(String type, String category,
                                  Long amountFen, String date, String remark) {}
+
+    public record LedgerCategoryView(Long id, String type, String name) {}
 
     public record LedgerEntryView(Long id, String type, String source, Long orderId,
                                   String category, Long amountFen, String date,

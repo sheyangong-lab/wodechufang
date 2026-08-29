@@ -165,15 +165,10 @@ public class KitchenService {
     private KitchenView toView(Kitchen k, String myRole, String ownerNickname) {
         long memberCount = memberRepository.countByKitchenId(k.getId());
         User owner = userRepository.findById(k.getOwnerId()).orElse(null);
-        boolean vip = com.sharedkitchen.module.vip.VipService.isVip(k);
         return new KitchenView(
                 k.getId(), k.getName(), k.getCode(), k.getLevel(),
                 k.getAnnouncement(), memberCount, myRole,
-                ownerNickname != null ? ownerNickname : (owner == null ? "" : owner.getNickname()),
-                k.getDishQuota(), k.getCategoryQuota(), k.getVipExpireAt(),
-                vip,
-                vip ? com.sharedkitchen.module.vip.VipService.VIP_DISH_QUOTA : k.getDishQuota(),
-                vip ? com.sharedkitchen.module.vip.VipService.VIP_CATEGORY_QUOTA : k.getCategoryQuota());
+                ownerNickname != null ? ownerNickname : (owner == null ? "" : owner.getNickname()));
     }
 
     private String generateCode() {
@@ -189,9 +184,7 @@ public class KitchenService {
 
     public record KitchenView(
             Long id, String name, String code, Integer level,
-            String announcement, long memberCount, String myRole, String ownerNickname,
-            Integer dishQuota, Integer categoryQuota, String vipExpireAt,
-            boolean vip, Integer effectiveDishQuota, Integer effectiveCategoryQuota) {}
+            String announcement, long memberCount, String myRole, String ownerNickname) {}
 
     public record MemberView(Long userId, String nickname, String role, String joinedAt) {}
 

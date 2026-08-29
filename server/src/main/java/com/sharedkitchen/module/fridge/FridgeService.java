@@ -108,6 +108,7 @@ public class FridgeService {
             item.setKitchenId(kitchenId);
             item.setName(req.name().trim());
             item.setCategoryId(req.categoryId());
+            item.setImageUrl(req.imageUrl() == null ? "" : req.imageUrl().trim());
             item.setProducedDate(validDate(req.producedDate()));
             item.setShelfLifeValue(req.shelfLifeValue());
             item.setShelfLifeUnit(validUnit(req.shelfLifeUnit()));
@@ -271,7 +272,7 @@ public class FridgeService {
         int daysLeft = (int) ChronoUnit.DAYS.between(LocalDate.now(), expire);
         String state = daysLeft < 0 ? "expired" : daysLeft <= EXPIRING_DAYS ? "expiring" : "fresh";
         return new FridgeItemView(i.getId(), i.getKitchenId(), i.getCategoryId(), i.getName(),
-                i.getProducedDate(), i.getShelfLifeValue(), i.getShelfLifeUnit(),
+                i.getImageUrl(), i.getProducedDate(), i.getShelfLifeValue(), i.getShelfLifeUnit(),
                 i.getQuantity(), i.getRemark(), expire.toString(), daysLeft, state);
     }
 
@@ -336,14 +337,14 @@ public class FridgeService {
         return java.time.Instant.now().toString();
     }
 
-    public record ItemReq(String name, Long categoryId, String producedDate,
+    public record ItemReq(String name, Long categoryId, String imageUrl, String producedDate,
                           Integer shelfLifeValue, String shelfLifeUnit,
                           String quantity, String remark) {}
 
     public record FridgeItemView(Long id, Long kitchenId, Long categoryId, String name,
-                                 String producedDate, Integer shelfLifeValue, String shelfLifeUnit,
-                                 String quantity, String remark, String expireDate,
-                                 int daysLeft, String state) {}
+                                 String imageUrl, String producedDate, Integer shelfLifeValue,
+                                 String shelfLifeUnit, String quantity, String remark,
+                                 String expireDate, int daysLeft, String state) {}
 
     public record FridgeCategoryView(Long id, String name) {}
 

@@ -29,6 +29,13 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.of(400, msg, null));
     }
 
+    /** 未知路径（含已下线的 VIP 接口）按 404 返回统一结构。 */
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> notFound(Exception e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.of(404, "接口不存在", null));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> unexpected(Exception e) {
         log.error("unhandled exception", e);

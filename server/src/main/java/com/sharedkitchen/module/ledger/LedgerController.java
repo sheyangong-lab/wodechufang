@@ -73,11 +73,30 @@ public class LedgerController {
         return ApiResponse.ok(ledgerService.dishStats(userId(request), kitchenId, month));
     }
 
+    public record CategoryReq(@NotBlank String type, @NotBlank String name) {}
+
+    // ----- 账本分类（每厨房可自定义） -----
+
     @GetMapping("/categories")
-    public ApiResponse<Map<String, List<String>>> categories() {
-        return ApiResponse.ok(Map.of(
-                "expense", ledgerService.expenseCategories(),
-                "income", ledgerService.incomeCategories()));
+    public ApiResponse<List<LedgerService.LedgerCategoryView>> categories(
+            HttpServletRequest request, @PathVariable Long kitchenId) {
+        return ApiResponse.ok(ledgerService.listCategories(userId(request), kitchenId));
+    }
+
+    @PostMapping("/categories")
+    public ApiResponse<LedgerService.LedgerCategoryView> createCategory(
+            HttpServletRequest request, @PathVariable Long kitchenId,
+            @RequestBody @Validated CategoryReq req) {
+        return ApiResponse.ok(ledgerService.createCategory(
+                userId(request), kitchenId, req.type(), req.name()));
+    }
+
+    @DeleteMapping("/categories/{categoryId}")
+    public ApiResponse<Void> deleteCategory(
+            HttpServletRequest request, @PathVariable Long kitchenId,
+            @PathVariable Long categoryId) {
+        ledgerService.deleteCategory(userId(request), kitchenId, categoryId);
+        return ApiResponse.ok();
     }
 
     @GetMapping("/export")

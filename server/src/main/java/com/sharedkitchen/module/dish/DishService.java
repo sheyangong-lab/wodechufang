@@ -35,12 +35,6 @@ public class DishService {
     @Transactional
     public DishView create(Long userId, Long kitchenId, DishReq req) {
         requireOwner(kitchenId, userId);
-        Kitchen kitchen = requireKitchen(kitchenId);
-        long count = dishRepository.countByKitchenIdAndDeleted(kitchenId, 0);
-        int quota = com.sharedkitchen.module.vip.VipService.effectiveDishQuota(kitchen);
-        if (count >= quota) {
-            throw new BusinessException("菜品数已达上限 " + quota + " 道，升级厨房可扩容");
-        }
         Dish dish = new Dish();
         apply(dish, kitchenId, req);
         dish.setCreatedAt(now());
@@ -83,12 +77,6 @@ public class DishService {
     public DishView restore(Long userId, Long dishId) {
         Dish dish = requireDish(dishId);
         requireOwner(dish.getKitchenId(), userId);
-        Kitchen kitchen = requireKitchen(dish.getKitchenId());
-        long count = dishRepository.countByKitchenIdAndDeleted(dish.getKitchenId(), 0);
-        int quota = com.sharedkitchen.module.vip.VipService.effectiveDishQuota(kitchen);
-        if (count >= quota) {
-            throw new BusinessException("菜品数已达上限，无法恢复");
-        }
         dish.setDeleted(0);
         dish.setUpdatedAt(now());
         dishRepository.save(dish);
@@ -132,17 +120,12 @@ public class DishService {
     @Transactional
     public CategoryView createCategory(Long userId, Long kitchenId, String name) {
         requireOwner(kitchenId, userId);
-        Kitchen kitchen = requireKitchen(kitchenId);
         if (name == null || name.isBlank()) {
             throw new BusinessException("请输入分类名称");
         }
         String trimmed = name.trim();
         if (trimmed.length() > 10) {
             throw new BusinessException("分类名最多10个字");
-        }
-        int quota = com.sharedkitchen.module.vip.VipService.effectiveCategoryQuota(kitchen);
-        if (categoryRepository.findByKitchenIdOrderBySortAscIdAsc(kitchenId).size() >= quota) {
-            throw new BusinessException("分类数已达上限 " + quota + " 个，升级厨房可扩容");
         }
         Category c = new Category();
         c.setKitchenId(kitchenId);
@@ -179,11 +162,11 @@ public class DishService {
     public List<DishView> randomMenu(Long userId, Long kitchenId, Long categoryId, int count) {
         requireMember(kitchenId, userId);
         int n = Math.max(1, Math.min(count, 10));
-        List<Dish> menu = dishRepository
+        List<Dish> menu = new java.util.ArrayList<>(dishRepository
                 .findByKitchenIdAndDeletedAndStatusOrderByUpdatedAtDesc(kitchenId, 0, 1)
                 .stream()
                 .filter(d -> categoryId == null || categoryId.equals(d.getCategoryId()))
-                .toList();
+                .toList()); // Stream.toList() 不可变，shuffle 前必须拷贝
         java.util.Collections.shuffle(menu);
         return menu.stream().limit(n).map(this::toView).toList();
     }

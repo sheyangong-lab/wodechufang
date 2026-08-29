@@ -27,15 +27,6 @@ public class Kitchen {
     @Column(nullable = false)
     private Integer level = 0;
 
-    @Column(name = "dish_quota", nullable = false)
-    private Integer dishQuota = 50;
-
-    @Column(name = "category_quota", nullable = false)
-    private Integer categoryQuota = 5;
-
-    @Column(name = "vip_expire_at")
-    private String vipExpireAt;
-
     @Column(nullable = false)
     private String announcement = "";
 
@@ -55,12 +46,6 @@ public class Kitchen {
     public void setOwnerId(Long ownerId) { this.ownerId = ownerId; }
     public Integer getLevel() { return level; }
     public void setLevel(Integer level) { this.level = level; }
-    public Integer getDishQuota() { return dishQuota; }
-    public void setDishQuota(Integer dishQuota) { this.dishQuota = dishQuota; }
-    public Integer getCategoryQuota() { return categoryQuota; }
-    public void setCategoryQuota(Integer categoryQuota) { this.categoryQuota = categoryQuota; }
-    public String getVipExpireAt() { return vipExpireAt; }
-    public void setVipExpireAt(String vipExpireAt) { this.vipExpireAt = vipExpireAt; }
     public String getAnnouncement() { return announcement; }
     public void setAnnouncement(String announcement) { this.announcement = announcement; }
     public Integer getStatus() { return status; }

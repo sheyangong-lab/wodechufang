@@ -49,6 +49,10 @@ CID=$(echo "$R" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']
 D=$(curl -s -X POST $BASE/api/kitchens/$KID/dishes -H "$J" -H "$HA" -d '{"name":"番茄炒蛋","priceFen":1280,"categoryId":'"$CID"',"recommendStars":3,"materials":"鸡蛋:3个\n番茄:2个","steps":"1、打蛋\n2、炒蛋","specs":[{"name":"小份","priceFen":1000},{"name":"大份","priceFen":1500}]}')
 check "建菜谱(多规格/分存储)" "$D" '"priceFen":1280'
 DID=$(echo "$D" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['id'])")
+R=$(curl -s "$BASE/api/kitchens/$KID/random-dishes?count=1" -H "$HA")
+check "随机点菜(全部)" "$R" '"name":"番茄炒蛋"'
+R=$(curl -s "$BASE/api/kitchens/$KID/random-dishes?categoryId=$CID&count=3" -H "$HB")
+check "随机点菜(按分类)" "$R" '"name":"番茄炒蛋"'
 R=$(curl -s -X POST $BASE/api/kitchens/$KID/dishes -H "$J" -H "$HB" -d '{"name":"越权菜","priceFen":100}')
 check "家人建菜谱应403(顾客概念已移除,家人可行)" "$R" '"code":0'
 
@@ -65,44 +69,45 @@ OID2=$(echo "$O2" | python3 -c "import sys,json;print(json.load(sys.stdin)['data
 R=$(curl -s -X POST $BASE/api/orders/$OID2/complete -H "$HA")
 check "完成订单" "$R" '"status":"COMPLETED"'
 
-# 5. 账本: 自动入账/手动支出/汇总/导出
+# 5. 账本: 自动入账/手动支出/自定义分类/汇总/导出
 R=$(curl -s $BASE/api/kitchens/$KID/ledger/summary?month=$(date +%Y-%m) -H "$HA")
 check "账本含自动收入(完成单1280分)" "$R" '"income":1280'
 check "账本含退款冲销3000分" "$R" '"refund":3000'
-R=$(curl -s -X POST $BASE/api/kitchens/$KID/ledger/entries -H "$J" -H "$HA" -d '{"type":"EXPENSE","category":"食材采购","amountFen":5000,"remark":"买菜"}')
-check "手动记支出" "$R" '"amountFen":5000'
+R=$(curl -s $BASE/api/kitchens/$KID/ledger/categories -H "$HA")
+check "账本分类懒加载默认(食材采购)" "$R" '"name":"食材采购"'
+R=$(curl -s -X POST $BASE/api/kitchens/$KID/ledger/categories -H "$J" -H "$HA" -d '{"type":"EXPENSE","name":"宠物开销"}')
+check "账本新建自定义分类" "$R" '"name":"宠物开销"'
+LCID=$(echo "$R" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['id'])")
+R=$(curl -s -X POST $BASE/api/kitchens/$KID/ledger/entries -H "$J" -H "$HA" -d '{"type":"EXPENSE","category":"宠物开销","amountFen":5000,"remark":"买菜"}')
+check "自定义分类记支出" "$R" '"category":"宠物开销"'
+R=$(curl -s -X POST $BASE/api/kitchens/$KID/ledger/entries -H "$J" -H "$HA" -d '{"type":"EXPENSE","category":"不存在的分类","amountFen":500}')
+check "乱填分类应400" "$R" '"code":400'
+R=$(curl -s -X DELETE $BASE/api/kitchens/$KID/ledger/categories/$LCID -H "$HA")
+check "删除自定义分类" "$R" '"code":0'
 R=$(curl -s $BASE/api/kitchens/$KID/ledger/export?month=$(date +%Y-%m) -H "$HA")
 XURL=$(echo "$R" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['url'])" 2>/dev/null)
 curl -s -o /tmp/smoke-ledger.xlsx "$BASE$XURL"
 SHEETS=$(python3 -c "import zipfile;print(len([n for n in zipfile.ZipFile('/tmp/smoke-ledger.xlsx').namelist() if 'worksheets/sheet' in n]))" 2>/dev/null || echo 0)
 [ "$SHEETS" = "4" ] && ok "Excel导出4 Sheet有效" || bad "Excel导出 (Sheet数=$SHEETS)"
 
-# 6. 冰箱: 三态/匹配/临期
+# 6. 冰箱: 三态/图片/匹配/临期
 TODAY=$(date +%F); AGO8=$(date -d "-8 days" +%F 2>/dev/null || date -v-8d +%F)
-R=$(curl -s -X POST $BASE/api/kitchens/$KID/fridge/items -H "$J" -H "$HA" -d '{"items":[{"name":"鸡蛋","shelfLifeValue":2,"shelfLifeUnit":"DAY","quantity":"12个"},{"name":"牛奶","producedDate":"'"$AGO8"'","shelfLifeValue":7,"shelfLifeUnit":"DAY"}]}')
+R=$(curl -s -X POST $BASE/api/kitchens/$KID/fridge/items -H "$J" -H "$HA" -d '{"items":[{"name":"鸡蛋","imageUrl":"/files/smoke-egg.jpg","shelfLifeValue":2,"shelfLifeUnit":"DAY","quantity":"12个"},{"name":"牛奶","producedDate":"'"$AGO8"'","shelfLifeValue":7,"shelfLifeUnit":"DAY"}]}')
 check "放入食材(临期+已过期)" "$R" '"state":"expiring"'
+check "食材照片回传" "$R" '"imageUrl":"/files/smoke-egg.jpg"'
 check "过期态计算" "$R" '"state":"expired"'
 R=$(curl -s -X POST $BASE/api/kitchens/$KID/fridge/match -H "$J" -H "$HA" -d '{"ingredient":"鸡蛋"}')
 check "匹配菜谱命中" "$R" '"materialLine":"鸡蛋:3个"'
 R=$(curl -s -X POST $BASE/api/kitchens/$KID/fridge/check-expiry -H "$HA")
 if echo "$R" | grep -Eq '"data":[1-9]'; then ok "临期扫描生成通知(非零)"; else bad "临期扫描生成通知 (实际: $(echo "$R" | head -c 100))"; fi
 
-# 7. 会员: 权限/兑换/额度
-R=$(curl -s -X POST $BASE/api/kitchens/$KID/vip/redeem -H "$J" -H "$HB" -d '{"code":"X"}')
-check "家人兑换应403" "$R" '"code":403'
+# 7. 后台: 登录/概览/封禁解封（VIP 已下线，全功能免费）
 ADMIN_BASE="${BASE}"
 LR=$(curl -s -X POST $ADMIN_BASE/api/admin/login -H "$J" -d '{"username":"admin","password":"admin123"}')
 ATOK=$(echo "$LR" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['token'])" 2>/dev/null)
-if [ -n "$ATOK" ]; then
-  GEN=$(curl -s -X POST $BASE/api/admin/codes/generate -H "Authorization: Bearer $ATOK" -H "$J" -d '{"planId":1,"count":1,"batch":"SMOKE"}')
-  NEWCODE=$(echo "$GEN" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['codes'].strip())" 2>/dev/null)
-  R=$(curl -s -X POST $BASE/api/kitchens/$KID/vip/redeem -H "$J" -H "$HA" -d "{\"code\":\"$NEWCODE\"}")
-  check "后台发码→店长兑换→额度500" "$R" '"dishQuota":500'
-  R=$(curl -s -X POST $BASE/api/kitchens/$KID/vip/redeem -H "$J" -H "$HA" -d "{\"code\":\"$NEWCODE\"}")
-  check "同码复用应400" "$R" '"code":400'
-else
-  bad "后台登录(跳过会员发码验证)"
-fi
+[ -n "$ATOK" ] && ok "后台登录" || bad "后台登录"
+R=$(curl -s $BASE/api/kitchens/$KID/vip/redeem -X POST -H "$J" -H "$HA" -d '{"code":"X"}')
+check "VIP接口已下线(404)" "$R" '"code":404'
 
 # 8. 后台: 概览/封禁解封
 R=$(curl -s $BASE/api/admin/overview -H "Authorization: Bearer $ATOK")

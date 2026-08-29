@@ -22,8 +22,6 @@
   th, td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--line); }
   th { color:var(--sub); font-weight:500; }
   .tag { display:inline-block; font-size:12px; border-radius:6px; padding:2px 8px; }
-  .tag.vip { background:#f3e3b3; color:#8a6a1f; }
-  .tag.free { background:#f2f0ea; color:var(--sub); }
   .tag.on { background:#e9f3ec; color:var(--green); }
   .tag.off { background:#fff5f3; color:var(--danger); }
   .stats { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
@@ -39,7 +37,6 @@
   .tabs button { background:#fff; color:var(--title); border:1px solid var(--line); }
   .tabs button.on { background:var(--amber); color:#fff; border-color:var(--amber); }
   .toolbar { display:flex; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
-  textarea { width:100%; min-height:140px; border:1px solid var(--line); border-radius:10px; padding:10px; font-size:13px; font-family:monospace; }
   .hide { display:none; }
   .toast { position:fixed; top:20px; left:50%; transform:translateX(-50%); background:var(--title); color:#fff; padding:10px 22px; border-radius:20px; font-size:14px; opacity:0; transition:.3s; pointer-events:none; }
   .toast.show { opacity:1; }
@@ -63,9 +60,8 @@
     <h1>🍳 共享厨房 · 管理后台</h1>
     <div class="tabs">
       <button class="on" data-v="overview" onclick="switchTab('overview', this)">概览</button>
-      <button data-v="kitchens" onclick="switchTab('kitchens', this)">厨房 / VIP</button>
+      <button data-v="kitchens" onclick="switchTab('kitchens', this)">厨房</button>
       <button data-v="users" onclick="switchTab('users', this)">用户</button>
-      <button data-v="codes" onclick="switchTab('codes', this)">兑换码</button>
       <button class="ghost" style="margin-left:auto" onclick="logout()">退出</button>
     </div>
 
@@ -80,7 +76,7 @@
           <button onclick="loadKitchens()">搜索</button>
         </div>
         <table id="k-table">
-          <thead><tr><th>ID</th><th>名称</th><th>厨房码</th><th>店长</th><th>成员</th><th>会员</th><th>到期</th><th>额度</th><th>操作</th></tr></thead>
+          <thead><tr><th>ID</th><th>名称</th><th>厨房码</th><th>店长</th><th>成员</th><th>状态</th><th>操作</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -98,32 +94,12 @@
         </table>
       </div>
     </div>
-
-    <div id="t-codes" class="hide">
-      <div class="card">
-        <div class="toolbar">
-          <select id="c-plan"></select>
-          <input id="c-count" type="number" value="10" style="width:70px" title="数量">
-          <input id="c-batch" placeholder="批次(可选)">
-          <button onclick="genCodes()">批量生成</button>
-          <input id="c-kw" placeholder="按批次筛选">
-          <button class="ghost" onclick="loadCodes()">刷新</button>
-        </div>
-        <textarea id="c-out" class="hide" readonly onclick="this.select()"></textarea>
-        <p class="muted hide" id="c-out-tip">↑ 点击文本框全选，复制发给用户</p>
-        <table id="cd-table">
-          <thead><tr><th>兑换码</th><th>套餐</th><th>状态</th><th>批次</th><th>使用厨房</th><th>操作</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
 
 <script>
 let TOKEN = sessionStorage.getItem('adminToken') || '';
-let PLANS = [];
 
 const $ = (id) => document.getElementById(id);
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2200); }
@@ -151,36 +127,22 @@ async function login() {
 
 function switchTab(v, btn) {
   document.querySelectorAll('.tabs button[data-v]').forEach(b => b.classList.toggle('on', b === btn));
-  ['overview','kitchens','users','codes'].forEach(t => $('t-' + t).classList.toggle('hide', t !== v));
+  ['overview','kitchens','users'].forEach(t => $('t-' + t).classList.toggle('hide', t !== v));
   if (v === 'overview') loadOverview();
   if (v === 'kitchens') loadKitchens();
   if (v === 'users') loadUsers();
-  if (v === 'codes') { loadPlans(); loadCodes(); }
 }
 
-const fen = (v) => (v / 100).toFixed(2);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 async function boot() {
-  const plans = await api('GET', '/codes').then(() => null).catch(() => null);
-  await loadPlans();
   loadOverview();
-}
-
-async function loadPlans() {
-  // 套餐列表来自任一厨房的 vip/status 公开接口（后台复用）
-  const kitchens = await api('GET', '/kitchens');
-  if (kitchens.length === 0) { PLANS = [{ id: 1, name: '月卡' }]; return; }
-  const status = await fetch('/api/kitchens/' + kitchens[0].id + '/vip/status').then(r => r.json());
-  PLANS = status.data.plans;
-  $('c-plan').innerHTML = PLANS.map(p => `<option value="${p.id}">${p.name} ¥${fen(p.priceFen)}</option>`).join('');
 }
 
 async function loadOverview() {
   const o = await api('GET', '/overview');
   $('overview-stats').innerHTML = [
-    ['注册用户', o.users], ['厨房总数', o.kitchens], ['会员厨房', o.vipKitchens],
-    ['兑换码总数', o.codesTotal], ['已核销', o.codesUsed],
+    ['注册用户', o.users], ['厨房总数', o.kitchens],
   ].map(([l, v]) => `<div class="stat"><span>${l}</span><b>${v}</b></div>`).join('');
 }
 
@@ -191,32 +153,11 @@ async function loadKitchens() {
     <tr>
       <td>${k.id}</td><td>${esc(k.name)}</td><td>${esc(k.code.slice(0,16))}…</td><td>${esc(k.ownerNickname)}</td>
       <td>${k.memberCount}</td>
-      <td>${k.vip ? '<span class="tag vip">会员</span>' : '<span class="tag free">免费</span>'}</td>
-      <td>${esc(k.vipExpireDate || '—')}</td>
-      <td>${k.effectiveDishQuota}/${k.effectiveCategoryQuota}</td>
+      <td>${k.status === 1 ? '<span class="tag on">正常</span>' : '<span class="tag off">封禁</span>'}</td>
       <td>
-        <button style="padding:4px 10px;font-size:12px" onclick="grantVip(${k.id})">${k.vip ? '续30天' : '开会员'}</button>
-        <button class="ghost" style="padding:4px 10px;font-size:12px" onclick="revokeVip(${k.id})">关会员</button>
-        <button class="ghost" style="padding:4px 10px;font-size:12px" onclick="setQuota(${k.id})">调额度</button>
         <button class="${k.status === 1 ? 'danger' : 'ghost'}" style="padding:4px 10px;font-size:12px" onclick="banKitchen(${k.id}, ${k.status === 1})">${k.status === 1 ? '封禁' : '解封'}</button>
       </td>
     </tr>`).join('');
-}
-async function grantVip(id) {
-  const days = Number(prompt('开通/续期天数（30=月 90=季 365=年）:', '30'));
-  if (!days || days < 1) return;
-  await api('POST', `/kitchens/${id}/vip`, { days });
-  toast('已开通'); loadKitchens();
-}
-async function revokeVip(id) {
-  if (!confirm('确定关闭该厨房会员？')) return;
-  await api('DELETE', `/kitchens/${id}/vip`); toast('已关闭'); loadKitchens();
-}
-async function setQuota(id) {
-  const d = Number(prompt('菜品额度:', '50')); if (!d) return;
-  const c = Number(prompt('分类额度:', '5')); if (!c) return;
-  await api('PUT', `/kitchens/${id}/quota`, { dishQuota: d, categoryQuota: c });
-  toast('已调整'); loadKitchens();
 }
 async function banKitchen(id, ban) {
   if (ban && !confirm('确定封禁该厨房？成员将被拦截')) return;
@@ -250,47 +191,7 @@ async function giftPoints(id) {
   toast('已操作'); loadUsers();
 }
 
-async function loadPlans() {
-  const kitchens = await api('GET', '/kitchens');
-  if (kitchens.length === 0) { PLANS = [{ id: 1, name: '月卡', priceFen: 1200 }]; }
-  else {
-    const st = await fetch('/api/kitchens/' + kitchens[0].id + '/vip/status').then(r => r.json());
-    PLANS = st.data.plans;
-  }
-  $('c-plan').innerHTML = PLANS.map(p => `<option value="${p.id}">${p.name} ¥${fen(p.priceFen)}</option>`).join('');
-}
-
-async function genCodes() {
-  const data = await api('POST', '/codes/generate', {
-    planId: Number($('c-plan').value),
-    count: Number($('c-count').value) || 10,
-    batch: $('c-batch').value.trim(),
-  });
-  $('c-out').classList.remove('hide');
-  $('c-out-tip').classList.remove('hide');
-  $('c-out').value = data.codes.trim();
-  toast(`已生成 ${data.codes.trim().split('\n').length} 个兑换码`);
-  loadCodes();
-}
-
-async function loadCodes() {
-  const kw = $('c-kw').value.trim();
-  const list = await api('GET', '/codes' + (kw ? '?batch=' + encodeURIComponent(kw) : ''));
-  $('cd-table').querySelector('tbody').innerHTML = list.map(c => `
-    <tr>
-      <td style="font-family:monospace">${esc(c.code)}</td>
-      <td>${(PLANS.find(p => p.id === c.planId) || {}).name || c.planId}</td>
-      <td>${c.status === 'USED' ? '<span class="tag on">已核销</span>' : c.status === 'DISABLED' ? '<span class="tag off">已作废</span>' : '<span class="tag vip">未使用</span>'}</td>
-      <td>${esc(c.batch)}</td><td>${esc(c.usedKitchenId || '—')}</td>
-      <td>${c.status === 'UNUSED' ? `<button class="danger" style="padding:4px 10px;font-size:12px" onclick="disableCode(${c.id})">作废</button>` : ''}</td>
-    </tr>`).join('');
-}
-async function disableCode(id) {
-  if (!confirm('作废后不可再兑换，确定？')) return;
-  await api('DELETE', `/codes/${id}`); toast('已作废'); loadCodes();
-}
-
-if (TOKEN) { showMain(); loadPlans(); loadOverview(); } else { showLogin(); }
+if (TOKEN) { showMain(); loadOverview(); } else { showLogin(); }
 </script>
 </body>
 </html>

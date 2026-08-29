@@ -43,6 +43,10 @@ public class FridgeItem {
     @Column(nullable = false)
     private String quantity = "";
 
+    /** 食材照片（/files/ 相对路径），拍照或相册上传 */
+    @Column(name = "image_url", nullable = false)
+    private String imageUrl = "";
+
     @Column(nullable = false, length = 50)
     private String remark = "";
 
@@ -68,6 +72,8 @@ public class FridgeItem {
     public void setShelfLifeUnit(String shelfLifeUnit) { this.shelfLifeUnit = shelfLifeUnit; }
     public String getQuantity() { return quantity; }
     public void setQuantity(String quantity) { this.quantity = quantity; }
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
     public String getRemark() { return remark; }
     public void setRemark(String remark) { this.remark = remark; }
     public Integer getDeleted() { return deleted; }
