@@ -28,6 +28,8 @@ function goLogin() {
 
 const nameDialogVisible = ref(false);
 const serverDialogVisible = ref(false);
+const testResult = ref('');
+const testing = ref(false);
 
 function openServerSetting() {
   serverDialogVisible.value = true;
@@ -37,6 +39,25 @@ function onSaveServer(url: string) {
   serverDialogVisible.value = false;
   setApiBase(url);
   uni.showToast({ title: '服务器地址已保存', icon: 'none' });
+}
+
+function onTestServer(url: string) {
+  if (!url || testing.value) return;
+  testing.value = true;
+  testResult.value = '测试中…';
+  const start = Date.now();
+  fetch(url.replace(/\/+$/, '') + '/api/health')
+    .then((res) => res.json())
+    .then((data: Record<string, unknown>) => {
+      const ms = Date.now() - start;
+      if (data.code === 0) {
+        testResult.value = `✓ 连通 · ${ms}ms`;
+      } else {
+        testResult.value = `✗ 响应异常`;
+      }
+    })
+    .catch(() => (testResult.value = '✗ 无法连接'))
+    .finally(() => (testing.value = false));
 }
 
 function editNickname() {
@@ -129,6 +150,10 @@ function onLogout() {
       :default-value="getApiBase()"
       placeholder="http://IP:8080"
       :maxlength="100"
+      :show-test="true"
+      :test-result="testResult"
+      :testing="testing"
+      @test="onTestServer"
       @confirm="onSaveServer"
       @close="serverDialogVisible = false"
     />

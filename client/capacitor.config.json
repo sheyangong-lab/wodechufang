@@ -3,6 +3,11 @@
   "appName": "共享厨房",
   "webDir": "dist/build/h5",
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "http"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
   }
 }

@@ -1,20 +1,26 @@
 <script setup lang="ts">
 import { theme } from '@/styles/theme';
-import { watch, ref } from 'vue';
+import { ref } from 'vue';
 
 const props = defineProps<{
   visible: boolean;
   title: string;
   placeholder?: string;
   defaultValue?: string;
-  /** text 单行 / textarea 多行 */
   type?: 'text' | 'textarea';
   maxlength?: number;
+  /** 显示「测试连通」按钮，点击后 emit test 事件 */
+  showTest?: boolean;
+  /** 测试结果文本（空则不显示） */
+  testResult?: string;
+  /** 测试中状态 */
+  testing?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'confirm', value: string): void;
   (e: 'close'): void;
+  (e: 'test', value: string): void;
 }>();
 
 const value = ref('');
@@ -31,6 +37,12 @@ function confirm() {
   if (!trimmed) return;
   emit('confirm', trimmed);
 }
+
+function onTest() {
+  emit('test', value.value.trim());
+}
+
+import { watch } from 'vue';
 </script>
 
 <template>
@@ -52,8 +64,14 @@ function confirm() {
         class="input"
         :placeholder="placeholder"
         placeholder-class="ph"
-        :maxlength="maxlength || 20"
+        :maxlength="maxlength || 50"
       />
+      <view v-if="showTest" class="test-row">
+        <text class="test-btn" hover-class="press-dim" @tap="onTest">
+          ⚡ 测试连通
+        </text>
+        <text v-if="testResult" class="test-result">{{ testResult }}</text>
+      </view>
       <view class="btns">
         <text class="btn cancel" hover-class="press-dim" @tap="emit('close')">取消</text>
         <view class="btn-divider" />
@@ -100,6 +118,19 @@ function confirm() {
   font-size: 28rpx; color: v-bind('theme.title'); line-height: 44rpx;
 }
 .ph { color: v-bind('theme.sub'); }
+.test-row {
+  display: flex; align-items: center; gap: 16rpx;
+  margin-top: 20rpx; min-height: 40rpx;
+}
+.test-btn {
+  font-size: 26rpx; color: v-bind('theme.primaryBtn');
+  border: 2rpx solid v-bind('theme.primaryBtn'); border-radius: 10rpx;
+  padding: 6rpx 20rpx;
+}
+.test-result {
+  font-size: 24rpx; color: v-bind('theme.sub');
+  flex: 1;
+}
 .btns {
   display: flex; align-items: center;
   margin-top: 36rpx;
