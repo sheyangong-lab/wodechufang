@@ -3,7 +3,7 @@ import { theme } from '@/styles/theme';
 import { ledgerApi } from '@/api/ledger';
 import type { LedgerEntryView, MonthSummary, DishStat } from '@/api/ledger';
 import { getCurrentKitchenId } from '@/api/kitchen';
-import { API_BASE } from '@/api/config';
+import { getApiBase } from '@/api/config';
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 
@@ -80,7 +80,7 @@ function exportExcel() {
   ledgerApi
     .export(kitchenId.value, month.value)
     .then((res) => {
-      const full = API_BASE + res.url;
+      const full = getApiBase() + res.url;
       // #ifdef H5
       window.open(full);
       // #endif

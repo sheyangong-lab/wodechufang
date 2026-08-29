@@ -1,4 +1,4 @@
-import { API_BASE } from '@/api/config';
+import { getApiBase } from '@/api/config';
 
 export interface ApiResponse<T> {
   code: number;
@@ -22,7 +22,7 @@ export function request<T>(options: RequestOptions): Promise<T> {
   return new Promise((resolve, reject) => {
     const token = uni.getStorageSync('token');
     uni.request({
-      url: API_BASE + options.url,
+      url: getApiBase() + options.url,
       method: options.method || 'GET',
       data: options.data,
       header: token ? { Authorization: `Bearer ${token}` } : {},

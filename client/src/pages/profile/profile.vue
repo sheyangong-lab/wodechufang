@@ -5,6 +5,7 @@ import type { UserView } from '@/api/auth';
 import { onShow } from '@dcloudio/uni-app';
 import { ref } from 'vue';
 import InputDialog from '@/components/input-dialog.vue';
+import { getApiBase, setApiBase } from '@/api/config';
 
 const user = ref<UserView | null>(loadUser());
 const grid = [
@@ -26,6 +27,17 @@ function goLogin() {
 }
 
 const nameDialogVisible = ref(false);
+const serverDialogVisible = ref(false);
+
+function openServerSetting() {
+  serverDialogVisible.value = true;
+}
+
+function onSaveServer(url: string) {
+  serverDialogVisible.value = false;
+  setApiBase(url);
+  uni.showToast({ title: '服务器地址已保存', icon: 'none' });
+}
 
 function editNickname() {
   if (!user.value) return;
@@ -89,6 +101,13 @@ function onLogout() {
       </view>
     </view>
 
+    <view class="card notice-wrap">
+      <view class="notice-row" hover-class="press-bg" @tap="serverDialogVisible = true">
+        <text class="notice">服务器设置</text>
+        <text class="chev">›</text>
+      </view>
+    </view>
+
     <view v-if="user" class="card notice-wrap">
       <view class="notice-row" hover-class="press-bg" @tap="onLogout">
         <text class="notice logout">退出登录</text>
@@ -102,6 +121,16 @@ function onLogout() {
       :maxlength="20"
       @confirm="onNickname"
       @close="nameDialogVisible = false"
+    />
+
+    <InputDialog
+      :visible="serverDialogVisible"
+      title="服务器设置"
+      :default-value="getApiBase()"
+      placeholder="http://IP:8080"
+      :maxlength="100"
+      @confirm="onSaveServer"
+      @close="serverDialogVisible = false"
     />
   </view>
 </template>

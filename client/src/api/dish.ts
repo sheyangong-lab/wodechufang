@@ -1,4 +1,4 @@
-import { API_BASE } from './config';
+import { getApiBase } from './config';
 import { request } from '@/utils/request';
 
 export interface DishSpec {
@@ -67,7 +67,7 @@ export function yuanToFen(yuan: string): number | null {
 /** 相对地址 → 完整图片 URL */
 export function fullUrl(url: string | null | undefined): string {
   if (!url) return '';
-  return url.startsWith('http') ? url : API_BASE + url;
+  return url.startsWith('http') ? url : getApiBase() + url;
 }
 
 export function parseSpecs(json: string | null): DishSpec[] {
@@ -89,7 +89,7 @@ export function uploadImage(): Promise<string> {
         const token = uni.getStorageSync('token');
         uni.showLoading({ title: '上传中…' });
         uni.uploadFile({
-          url: API_BASE + '/api/uploads',
+          url: getApiBase() + '/api/uploads',
           filePath: choose.tempFilePaths[0],
           name: 'file',
           header: token ? { Authorization: `Bearer ${token}` } : {},
