@@ -17,7 +17,7 @@ interface GridItem {
 
 const user = ref<UserView | null>(loadUser());
 const grid: GridItem[] = [
-  { key: '厨房管理', icon: '/static/icons/chefhat.png', url: '/pages/profile/manage' },
+  { key: '厨房管理', icon: '/static/icons/pan.png', url: '/pages/profile/manage' },
   { key: '任务大厅', icon: '/static/icons/grid-mission.png' },
   { key: '厨房菜篮', icon: '/static/icons/basket.png' },
   { key: '饮食计划', icon: '/static/icons/grid-calendar.png' },

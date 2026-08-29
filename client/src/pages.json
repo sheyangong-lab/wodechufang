@@ -101,7 +101,7 @@
     "backgroundColor": "#FFFFFF",
     "borderStyle": "white",
     "list": [
-      { "pagePath": "pages/kitchen/kitchen", "text": "厨房", "iconPath": "static/icons/tab-kitchen.png", "selectedIconPath": "static/icons/tab-kitchen-active.png" },
+      { "pagePath": "pages/kitchen/kitchen", "text": "厨房", "iconPath": "static/icons/pan.png", "selectedIconPath": "static/icons/pan-active.png" },
       { "pagePath": "pages/order/order", "text": "订单", "iconPath": "static/icons/tab-order.png", "selectedIconPath": "static/icons/tab-order-active.png" },
       { "pagePath": "pages/ledger/ledger", "text": "账本", "iconPath": "static/icons/tab-ledger.png", "selectedIconPath": "static/icons/tab-ledger-active.png" },
       { "pagePath": "pages/fridge/fridge", "text": "冰箱", "iconPath": "static/icons/tab-fridge.png", "selectedIconPath": "static/icons/tab-fridge-active.png" },

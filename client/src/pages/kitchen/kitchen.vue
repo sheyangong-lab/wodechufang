@@ -250,7 +250,7 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
       <view class="kitchen-card card">
         <view class="kitchen-head">
           <view class="avatar">
-            <image class="avatar-img" src="/static/icons/chefhat.png" mode="aspectFit" />
+            <image class="avatar-img" src="/static/icons/pan.png" mode="aspectFit" />
           </view>
           <view class="info" hover-class="press-dim" @tap="goMembers">
             <view class="name-row">

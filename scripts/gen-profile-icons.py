@@ -138,13 +138,29 @@ def moon():
 
 def server():
     im, d = canvas()
-    d.rounded_rectangle([16*SS, 16*SS, 80*SS, 44*SS], radius=8*SS, outline=GRAY, width=LW)
+    d.rounded_rectangle([16*SS, 16*SS, 80*SS, 80*SS], radius=8*SS, outline=GRAY, width=LW)
     d.rounded_rectangle([16*SS, 52*SS, 80*SS, 80*SS], radius=8*SS, outline=GRAY, width=LW)
     d.ellipse([26*SS, 26*SS, 36*SS, 36*SS], fill=AMBER)
     d.ellipse([26*SS, 62*SS, 36*SS, 72*SS], fill=AMBER)
     rounded_line(d, [(46*SS, 30*SS), (70*SS, 30*SS)], GRAY)
     rounded_line(d, [(46*SS, 66*SS), (70*SS, 66*SS)], GRAY)
     save(im, 'grid-server')
+
+
+def pan(color_body, color_accent, name):
+    """斜 45° 平底锅（俯视）：锅体圆 + 右上手柄 + 锅心蛋黄点。"""
+    im, d = canvas()
+    cx, cy, r = 40 * SS, 56 * SS, 24 * SS
+    # 手柄：从锅沿伸向右上，圆头粗线
+    rounded_line(d,
+                 [(cx + int(r*0.71), cy - int(r*0.71)), (78*SS, 18*SS)],
+                 color_body, width=7*SS)
+    # 锅体
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=color_body, width=LW)
+    # 锅心蛋黄（点缀色）
+    yr = 8 * SS
+    d.ellipse([cx - yr, cy - yr, cx + yr, cy + yr], fill=color_accent)
+    save(im, name)
 
 
 if __name__ == '__main__':
@@ -158,3 +174,6 @@ if __name__ == '__main__':
     dots()
     moon()
     server()
+    # 平底锅：灰色常规版（宫格/tab 未选中）+ 琥珀选中版
+    pan(GRAY, AMBER, 'pan')
+    pan(AMBER, GRAY, 'pan-active')

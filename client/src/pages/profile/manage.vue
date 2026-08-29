@@ -146,7 +146,7 @@ function onGrid(item: string) {
       <view class="card head">
         <view class="head-row">
           <view class="avatar">
-            <image class="avatar-img" src="/static/icons/chefhat.png" mode="aspectFit" />
+            <image class="avatar-img" src="/static/icons/pan.png" mode="aspectFit" />
           </view>
           <view class="head-info">
             <view class="name-row">
