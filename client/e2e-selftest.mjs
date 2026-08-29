@@ -151,7 +151,7 @@ console.log('== 放入食材 ==');
 await goto('/pages/fridge/add');
 await sleep(700);
 const addText = await page.evaluate(() => document.body.innerText);
-ok('照片入口存在(拍照/相册)', addText.includes('拍照 / 相册'));
+ok('照片入口存在(拍照/选图/自动去背景)', addText.includes('自动去背景'));
 await page.screenshot({ path: `${SHOT_DIR}/07-fridge-add.png`, fullPage: true });
 
 // 7. 分类管理页（新增）

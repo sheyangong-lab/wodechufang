@@ -2,7 +2,8 @@
 import { theme } from '@/styles/theme';
 import { fridgeApi, UNIT_LABELS } from '@/api/fridge';
 import type { FridgeCategoryView } from '@/api/fridge';
-import { uploadImage, fullUrl } from '@/api/dish';
+import { fullUrl } from '@/api/dish';
+import { chooseSubjectImage } from '@/utils/image-pick';
 import { ensureKitchenId, getCurrentKitchenId } from '@/api/kitchen';
 import { onLoad } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
@@ -60,11 +61,29 @@ function removeItem(i: number) {
   drafts.value.splice(i, 1);
 }
 
-/** 拍照或从相册选图上传（uni.chooseImage 默认双来源），回填相对 URL */
+/** 拍照/相册 → 本地识别主体去背景 → 上传，失败自动回退原图 */
+const photoSourceVisible = ref(false);
+const photoTarget = ref(0);
+
 function pickImage(i: number) {
-  uploadImage()
-    .then((url) => (drafts.value[i].imageUrl = url))
-    .catch(() => {});
+  photoTarget.value = i;
+  photoSourceVisible.value = true;
+}
+
+const photoSourceItems = [
+  { key: 'camera', title: '拍照', desc: '拍完自动识别主体、去除背景' },
+  { key: 'album', title: '从相册选择', desc: '选完自动识别主体、去除背景' },
+];
+
+async function onPhotoSourcePick(key: string) {
+  photoSourceVisible.value = false;
+  try {
+    const { url, segmented } = await chooseSubjectImage([key as 'camera' | 'album']);
+    drafts.value[photoTarget.value].imageUrl = url;
+    uni.showToast({ title: segmented ? '已识别主体并去背景' : '已使用原图', icon: 'none' });
+  } catch {
+    // 取消或上传失败（失败已有 toast）
+  }
 }
 
 function removeImage(i: number) {
@@ -142,7 +161,7 @@ function submit() {
           <image v-if="d.imageUrl" class="photo" :src="fullUrl(d.imageUrl)" mode="aspectFill" />
           <view v-else class="photo-holder">
             <image class="photo-icon" src="/static/icons/pot.png" mode="aspectFit" />
-            <text class="photo-tip">拍照 / 相册</text>
+            <text class="photo-tip">拍照 / 选图（自动去背景）</text>
           </view>
           <text v-if="d.imageUrl" class="photo-del" @tap.stop="removeImage(i)">✕</text>
         </view>
@@ -198,6 +217,12 @@ function submit() {
       :items="catItems"
       @select="onCatPick"
       @close="catSheetVisible = false"
+    />
+    <ActionSheet
+      :visible="photoSourceVisible"
+      :items="photoSourceItems"
+      @select="onPhotoSourcePick"
+      @close="photoSourceVisible = false"
     />
   </view>
 </template>

@@ -38,6 +38,8 @@ public class WebConfig implements WebMvcConfigurer {
         config.addAllowedHeader("*");
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", config);
+        // /files/** 上传图也放开跨域：H5 端 canvas 读取像素（如抠图回显校验）需要
+        source.registerCorsConfiguration("/files/**", config);
         FilterRegistrationBean<CorsFilter> registration =
                 new FilterRegistrationBean<>(new CorsFilter(source));
         registration.setOrder(0);

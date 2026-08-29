@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { theme } from '@/styles/theme';
 import { dishApi, uploadImage, yuanToFen, fenToYuan, fullUrl } from '@/api/dish';
+import { chooseSubjectImage } from '@/utils/image-pick';
 import type { CategoryView, DishSpec, DishView } from '@/api/dish';
 import { getCurrentKitchenId } from '@/api/kitchen';
 import { onLoad } from '@dcloudio/uni-app';
@@ -180,10 +181,27 @@ async function loadCategories() {
   }
 }
 
+// 头图：拍照/相册 → 本地识别主体去背景 → 失败自动回退原图
+const imgSourceVisible = ref(false);
+
 function chooseImage() {
-  uploadImage()
-    .then((url) => (imageUrl.value = url))
-    .catch(() => {});
+  imgSourceVisible.value = true;
+}
+
+const imgSourceItems = [
+  { key: 'camera', title: '拍照', desc: '拍完自动识别主体、去除背景' },
+  { key: 'album', title: '从相册选择', desc: '选完自动识别主体、去除背景' },
+];
+
+async function onImgSourcePick(key: string) {
+  imgSourceVisible.value = false;
+  try {
+    const { url, segmented } = await chooseSubjectImage([key as 'camera' | 'album']);
+    imageUrl.value = url;
+    uni.showToast({ title: segmented ? '已识别主体并去背景' : '已使用原图', icon: 'none' });
+  } catch {
+    // 取消或上传失败（失败已有 toast）
+  }
 }
 
 function pickCategory() {
@@ -301,7 +319,7 @@ function toast(title: string) {
         <image v-if="imageUrl" class="img-preview" :src="fullUrl(imageUrl)" mode="aspectFill" />
         <view v-else class="img-holder">
           <image class="holder-icon" src="/static/icons/pot.png" mode="aspectFit" />
-          <text class="holder-tip">点击上传成品图</text>
+          <text class="holder-tip">拍照 / 选图（自动去背景）</text>
         </view>
       </view>
       <text class="ai-tip">AI 生图功能 M6 上线（每次消耗 2 币）</text>
@@ -440,6 +458,7 @@ function toast(title: string) {
 
     <!-- 分类选择 / 难度选择 / 添加分类弹层 -->
     <ActionSheet :visible="catSheetVisible" :items="catItems" @select="onCatPick" @close="catSheetVisible = false" />
+    <ActionSheet :visible="imgSourceVisible" :items="imgSourceItems" @select="onImgSourcePick" @close="imgSourceVisible = false" />
     <ActionSheet :visible="diffSheetVisible" :items="diffItems" @select="onDiffPick" @close="diffSheetVisible = false" />
     <InputDialog
       :visible="catDialogVisible"
