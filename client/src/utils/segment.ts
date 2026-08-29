@@ -110,24 +110,63 @@ async function inferMask(source: HTMLCanvasElement): Promise<HTMLCanvasElement> 
   const outName = session.outputNames[0];
   const map = results[outName].data as Float32Array;
 
-  // 3. 概率 → 320 灰度画布（对比度拉伸让主体更实、背景更透）
-  let max = 0;
-  for (let i = 0; i < map.length; i++) if (map[i] > max) max = map[i];
-  const norm = max > 0 ? 1 / max : 1;
+  // 3. 概率 → 320 灰度画布：
+  //    - 用 98 分位归一化（抗离群亮点），不做过度拉伸；
+  //    - 低阈值起步（0.10~0.42 渐变），宁多留不误删；
+  //    - 再做一次膨胀（max 滤波），把贴边主体完整保住。
+  const sample: number[] = [];
+  for (let i = 0; i < map.length; i += 7) sample.push(map[i]);
+  sample.sort((a, b) => a - b);
+  const p98 = sample[Math.floor(sample.length * 0.98)] || 1;
+  const norm = p98 > 0.05 ? 1 / p98 : 1;
+  const gray = new Uint8ClampedArray(map.length);
+  for (let i = 0; i < map.length; i++) {
+    const v = Math.min(1, map[i] * norm);
+    // smoothstep(0.10, 0.42)：背景(远低于0.1)全透，主体(>0.4)全保留
+    let a = (v - 0.1) / 0.32;
+    a = a < 0 ? 0 : a > 1 ? 1 : a;
+    a = a * a * (3 - 2 * a);
+    gray[i] = Math.round(a * 255);
+  }
+  // 膨胀 r=2（可分离 max 滤波）：找回被阈值吃掉的边缘细节
+  const dilated = dilate(gray, INPUT_SIZE, INPUT_SIZE, 2);
   const maskCanvas = document.createElement('canvas');
   maskCanvas.width = INPUT_SIZE;
   maskCanvas.height = INPUT_SIZE;
   const mctx = maskCanvas.getContext('2d')!;
   const out = mctx.createImageData(INPUT_SIZE, INPUT_SIZE);
-  for (let i = 0; i < map.length; i++) {
-    const v = Math.min(255, Math.round(Math.min(1, map[i] * norm * 1.35) * 255));
-    out.data[i * 4] = v;
-    out.data[i * 4 + 1] = v;
-    out.data[i * 4 + 2] = v;
+  for (let i = 0; i < dilated.length; i++) {
+    out.data[i * 4] = dilated[i];
+    out.data[i * 4 + 1] = dilated[i];
+    out.data[i * 4 + 2] = dilated[i];
     out.data[i * 4 + 3] = 255;
   }
   mctx.putImageData(out, 0, 0);
   return maskCanvas;
+}
+
+/** 半径 r 的方形结构元膨胀（先横后纵两趟 max 滤波） */
+function dilate(src: Uint8ClampedArray, w: number, h: number, r: number): Uint8ClampedArray {
+  const tmp = new Uint8ClampedArray(src.length);
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    for (let x = 0; x < w; x++) {
+      let m = 0;
+      const x0 = Math.max(0, x - r), x1 = Math.min(w - 1, x + r);
+      for (let k = x0; k <= x1; k++) if (src[row + k] > m) m = src[row + k];
+      tmp[row + x] = m;
+    }
+  }
+  const out = new Uint8ClampedArray(src.length);
+  for (let y = 0; y < h; y++) {
+    const y0 = Math.max(0, y - r), y1 = Math.min(h - 1, y + r);
+    for (let x = 0; x < w; x++) {
+      let m = 0;
+      for (let k = y0; k <= y1; k++) if (tmp[k * w + x] > m) m = tmp[k * w + x];
+      out[y * w + x] = m;
+    }
+  }
+  return out;
 }
 
 export interface SegmentResult {
@@ -170,13 +209,13 @@ export async function removeBackground(src: string): Promise<SegmentResult> {
   }
   octx.putImageData(outImg, 0, 0);
 
-  // 裁剪到主体外接框（留 4% 边距，且限制非空）
+  // 裁剪到主体外接框（留 8% 边距，细长/贴边主体不顶格）
   const sx = scaled.width;
   const sy = scaled.height;
   let minX = sx, minY = sy, maxX = -1, maxY = -1;
   for (let y = 0; y < sy; y++) {
     for (let x = 0; x < sx; x++) {
-      if (maskData[(y * sx + x) * 4] > 80) {
+      if (maskData[(y * sx + x) * 4] > 60) {
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
@@ -186,8 +225,8 @@ export async function removeBackground(src: string): Promise<SegmentResult> {
   }
   let crop = outCanvas;
   if (maxX > minX && maxY > minY) {
-    const padX = Math.round((maxX - minX) * 0.04);
-    const padY = Math.round((maxY - minY) * 0.04);
+    const padX = Math.round((maxX - minX) * 0.08);
+    const padY = Math.round((maxY - minY) * 0.08);
     const cx = Math.max(0, minX - padX);
     const cy = Math.max(0, minY - padY);
     const cw = Math.min(sx, maxX + padX + 1) - cx;

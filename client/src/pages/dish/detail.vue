@@ -27,6 +27,13 @@ onLoad((query) => {
   });
 });
 
+/** 点主图看大图 */
+function previewHero() {
+  if (dish.value?.imageUrl) {
+    uni.previewImage({ urls: [fullUrl(dish.value.imageUrl)] });
+  }
+}
+
 function pickSpec(s: DishSpec) {
   selectedSpec.value = s;
 }
@@ -76,7 +83,7 @@ function fmtTime(iso: string) {
 <template>
   <view class="page">
     <template v-if="dish">
-      <image v-if="dish.imageUrl" class="hero" :src="fullUrl(dish.imageUrl)" mode="aspectFill" />
+      <image v-if="dish.imageUrl" class="hero" :src="fullUrl(dish.imageUrl)" mode="aspectFit" @tap="previewHero" />
       <view class="card head">
         <view class="title-row">
           <text class="name">{{ dish.name }}</text>

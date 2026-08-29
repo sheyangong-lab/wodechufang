@@ -93,7 +93,7 @@ function goConfirm() {
 
     <!-- 抽取结果 -->
     <view v-for="d in results" :key="d.id" class="card dish-card">
-      <image v-if="d.imageUrl" class="thumb" :src="fullUrl(d.imageUrl)" mode="aspectFill" />
+      <image v-if="d.imageUrl" class="thumb" :src="fullUrl(d.imageUrl)" mode="aspectFit" />
       <view v-else class="thumb holder">
         <image class="holder-icon" src="/static/icons/pot.png" mode="aspectFit" />
       </view>

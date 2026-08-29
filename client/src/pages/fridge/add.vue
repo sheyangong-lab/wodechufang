@@ -70,13 +70,21 @@ function pickImage(i: number) {
   photoSourceVisible.value = true;
 }
 
-const photoSourceItems = [
-  { key: 'camera', title: '拍照', desc: '拍完自动识别主体、去除背景' },
-  { key: 'album', title: '从相册选择', desc: '选完自动识别主体、去除背景' },
-];
+const photoSourceItems = computed(() => {
+  const d = drafts.value[photoTarget.value];
+  const items: { key: string; title: string; desc: string }[] = [];
+  if (d && d.imageUrl) items.push({ key: 'preview', title: '查看大图', desc: '原图完整查看' });
+  items.push({ key: 'camera', title: '拍照', desc: '拍完自动识别主体、去除背景' });
+  items.push({ key: 'album', title: '从相册选择', desc: '选完自动识别主体、去除背景' });
+  return items;
+});
 
 async function onPhotoSourcePick(key: string) {
   photoSourceVisible.value = false;
+  if (key === 'preview') {
+    uni.previewImage({ urls: [fullUrl(drafts.value[photoTarget.value].imageUrl)] });
+    return;
+  }
   try {
     const { url, segmented } = await chooseSubjectImage([key as 'camera' | 'album']);
     drafts.value[photoTarget.value].imageUrl = url;
@@ -158,7 +166,7 @@ function submit() {
       <!-- 照片：拍照/相册 -->
       <view class="photo-row">
         <view class="photo-box" hover-class="press-dim" @tap="pickImage(i)">
-          <image v-if="d.imageUrl" class="photo" :src="fullUrl(d.imageUrl)" mode="aspectFill" />
+          <image v-if="d.imageUrl" class="photo" :src="fullUrl(d.imageUrl)" mode="aspectFit" />
           <view v-else class="photo-holder">
             <image class="photo-icon" src="/static/icons/pot.png" mode="aspectFit" />
             <text class="photo-tip">拍照 / 选图（自动去背景）</text>
@@ -256,7 +264,7 @@ function submit() {
   border: 2rpx dashed v-bind('theme.divider'); border-radius: 16rpx;
   overflow: visible;
 }
-.photo { width: 100%; height: 100%; border-radius: 14rpx; }
+.photo { width: 100%; height: 100%; border-radius: 14rpx; background: v-bind('theme.primaryLight'); }
 .photo-holder {
   width: 100%; height: 100%;
   background: v-bind('theme.primaryLight');

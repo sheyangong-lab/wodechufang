@@ -60,7 +60,7 @@ function submit() {
   <view class="page">
     <view class="card list">
       <view v-for="i in cart.items" :key="i.dishId + (i.specName || '')" class="item">
-        <image v-if="i.imageUrl" class="thumb" :src="fullUrl(i.imageUrl)" mode="aspectFill" />
+        <image v-if="i.imageUrl" class="thumb" :src="fullUrl(i.imageUrl)" mode="aspectFit" />
         <view v-else class="thumb holder">
           <image class="holder-icon" src="/static/icons/pot.png" mode="aspectFit" />
         </view>

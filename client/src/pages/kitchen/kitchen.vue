@@ -319,7 +319,7 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
             <text class="warm-tip">点右上角二维码复制厨房码，发给成员下单</text>
           </view>
           <view v-for="d in dishes" :key="d.id" class="card dish-card" hover-class="press-dim" @tap="openDish(d)">
-            <image v-if="d.imageUrl" class="dish-img" :src="fullUrl(d.imageUrl)" mode="aspectFill" />
+            <image v-if="d.imageUrl" class="dish-img" :src="fullUrl(d.imageUrl)" mode="aspectFit" />
             <view v-else class="dish-img holder">
               <image class="holder-icon" src="/static/icons/pot.png" mode="aspectFit" />
             </view>
@@ -483,7 +483,7 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
   display: flex; gap: 20rpx;
   padding: 20rpx; margin-bottom: 16rpx;
 }
-.dish-img { width: 140rpx; height: 140rpx; border-radius: 16rpx; flex-shrink: 0; }
+.dish-img { width: 140rpx; height: 140rpx; border-radius: 16rpx; flex-shrink: 0; background: v-bind('theme.primaryLight'); }
 .dish-img.holder {
   background: v-bind('theme.primaryLight');
   display: flex; align-items: center; justify-content: center;

@@ -188,13 +188,20 @@ function chooseImage() {
   imgSourceVisible.value = true;
 }
 
-const imgSourceItems = [
-  { key: 'camera', title: '拍照', desc: '拍完自动识别主体、去除背景' },
-  { key: 'album', title: '从相册选择', desc: '选完自动识别主体、去除背景' },
-];
+const imgSourceItems = computed(() => {
+  const items: { key: string; title: string; desc: string }[] = [];
+  if (imageUrl.value) items.push({ key: 'preview', title: '查看大图', desc: '原图完整查看' });
+  items.push({ key: 'camera', title: '拍照', desc: '拍完自动识别主体、去除背景' });
+  items.push({ key: 'album', title: '从相册选择', desc: '选完自动识别主体、去除背景' });
+  return items;
+});
 
 async function onImgSourcePick(key: string) {
   imgSourceVisible.value = false;
+  if (key === 'preview') {
+    uni.previewImage({ urls: [fullUrl(imageUrl.value)] });
+    return;
+  }
   try {
     const { url, segmented } = await chooseSubjectImage([key as 'camera' | 'album']);
     imageUrl.value = url;
@@ -316,7 +323,7 @@ function toast(title: string) {
     <!-- 头图 -->
     <view class="card section">
       <view class="img-box" hover-class="press-dim" @tap="chooseImage">
-        <image v-if="imageUrl" class="img-preview" :src="fullUrl(imageUrl)" mode="aspectFill" />
+        <image v-if="imageUrl" class="img-preview" :src="fullUrl(imageUrl)" mode="aspectFit" />
         <view v-else class="img-holder">
           <image class="holder-icon" src="/static/icons/pot.png" mode="aspectFit" />
           <text class="holder-tip">拍照 / 选图（自动去背景）</text>
@@ -494,7 +501,7 @@ function toast(title: string) {
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
 }
-.img-preview { width: 100%; height: 100%; }
+.img-preview { width: 100%; height: 100%; background: v-bind('theme.primaryLight'); }
 .img-holder { display: flex; flex-direction: column; align-items: center; gap: 12rpx; }
 .holder-icon { width: 72rpx; height: 72rpx; opacity: 0.6; }
 .holder-tip { font-size: 22rpx; color: v-bind('theme.sub'); }

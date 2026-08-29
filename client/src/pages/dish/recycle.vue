@@ -35,7 +35,7 @@ function restore(d: DishView) {
       <text class="empty-tip">回收站是空的</text>
     </view>
     <view v-for="d in dishes" :key="d.id" class="card row-card" hover-class="press-dim">
-      <image v-if="d.imageUrl" class="thumb" :src="fullUrl(d.imageUrl)" mode="aspectFill" />
+      <image v-if="d.imageUrl" class="thumb" :src="fullUrl(d.imageUrl)" mode="aspectFit" />
       <view v-else class="thumb holder">
         <image class="holder-icon" src="/static/icons/pot.png" mode="aspectFit" />
       </view>

@@ -145,6 +145,11 @@ function onAddCategory(name: string) {
   fridgeApi.createCategory(kitchenId.value!, name).then(() => load());
 }
 
+/** 点缩略图看大图 */
+function previewPhoto(url: string) {
+  uni.previewImage({ urls: [fullUrl(url)] });
+}
+
 function tipMatch() {
   uni.showToast({ title: '点食材卡片上的「匹配菜谱」即可', icon: 'none' });
 }
@@ -236,7 +241,7 @@ function tipMatch() {
                 <text class="match" hover-class="press-dim" @tap="goMatch(i)">匹配菜谱</text>
               </view>
             </view>
-            <image v-if="i.imageUrl" class="item-photo" :src="fullUrl(i.imageUrl)" mode="aspectFill" />
+            <image v-if="i.imageUrl" class="item-photo" :src="fullUrl(i.imageUrl)" mode="aspectFit" @tap.stop="previewPhoto(i.imageUrl)" />
           </view>
         </view>
       </view>
@@ -330,7 +335,7 @@ function tipMatch() {
 
 .item { padding: 22rpx 26rpx; margin-bottom: 16rpx; border: 2rpx solid v-bind('theme.divider'); display: flex; gap: 20rpx; align-items: flex-start; }
 .item-main { flex: 1; min-width: 0; }
-.item-photo { width: 120rpx; height: 120rpx; border-radius: 14rpx; flex-shrink: 0; }
+.item-photo { width: 120rpx; height: 120rpx; border-radius: 14rpx; flex-shrink: 0; background: v-bind('theme.primaryLight'); }
 .item.warning { border-color: v-bind('theme.warning'); background: v-bind('theme.warningLight'); }
 .item.danger { border-color: v-bind('theme.danger'); background: v-bind('theme.dangerLight'); }
 .item-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8rpx; }
