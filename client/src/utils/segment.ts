@@ -209,13 +209,47 @@ export async function removeBackground(src: string): Promise<SegmentResult> {
   }
   octx.putImageData(outImg, 0, 0);
 
-  // 裁剪到主体外接框（留 8% 边距，细长/贴边主体不顶格）
-  const sx = scaled.width;
-  const sy = scaled.height;
+  // ---- 白色描边（贴纸风）----
+  // 抠图边缘总有一圈半透明残边，与其留着杂色，不如整体盖成白描边：
+  // 主体 alpha 膨胀出描边区域 → 白色硬边层垫底（1px 柔化锯齿）→ 主体盖上，
+  // 半透明残边自然融进白色，观感等同「白色描边」。
+  const w = scaled.width;
+  const h = scaled.height;
+  const alphaArr = new Uint8ClampedArray(w * h);
+  for (let i = 0; i < w * h; i++) alphaArr[i] = outImg.data[i * 4 + 3];
+  // 描边宽度随图幅自适应（短边的 1.4%，3~8px）
+  const ringR = Math.max(3, Math.round(Math.min(w, h) * 0.014));
+  const outlineAlpha = dilate(alphaArr, w, h, ringR);
+  const outlineCanvas = document.createElement('canvas');
+  outlineCanvas.width = w;
+  outlineCanvas.height = h;
+  const olctx = outlineCanvas.getContext('2d')!;
+  const outlineImg = olctx.createImageData(w, h);
+  for (let i = 0; i < w * h; i++) {
+    outlineImg.data[i * 4] = 255;
+    outlineImg.data[i * 4 + 1] = 255;
+    outlineImg.data[i * 4 + 2] = 255;
+    // 二值化出硬边贴纸感
+    outlineImg.data[i * 4 + 3] = outlineAlpha[i] > 90 ? 255 : 0;
+  }
+  olctx.putImageData(outlineImg, 0, 0);
+
+  const finalCanvas = document.createElement('canvas');
+  finalCanvas.width = w;
+  finalCanvas.height = h;
+  const fctx = finalCanvas.getContext('2d')!;
+  fctx.filter = 'blur(1px)';
+  fctx.drawImage(outlineCanvas, 0, 0);
+  fctx.filter = 'none';
+  fctx.drawImage(outCanvas, 0, 0);
+
+  // 裁剪到主体外接框（含描边，留 8% 边距，细长/贴边主体不顶格）
+  const sx = w;
+  const sy = h;
   let minX = sx, minY = sy, maxX = -1, maxY = -1;
   for (let y = 0; y < sy; y++) {
     for (let x = 0; x < sx; x++) {
-      if (maskData[(y * sx + x) * 4] > 60) {
+      if (outlineAlpha[y * sx + x] > 10) {
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
@@ -223,7 +257,7 @@ export async function removeBackground(src: string): Promise<SegmentResult> {
       }
     }
   }
-  let crop = outCanvas;
+  let crop = finalCanvas;
   if (maxX > minX && maxY > minY) {
     const padX = Math.round((maxX - minX) * 0.08);
     const padY = Math.round((maxY - minY) * 0.08);
@@ -234,7 +268,7 @@ export async function removeBackground(src: string): Promise<SegmentResult> {
     crop = document.createElement('canvas');
     crop.width = cw;
     crop.height = ch;
-    crop.getContext('2d')!.drawImage(outCanvas, cx, cy, cw, ch, 0, 0, cw, ch);
+    crop.getContext('2d')!.drawImage(finalCanvas, cx, cy, cw, ch, 0, 0, cw, ch);
   }
 
   const blob = await new Promise<Blob>((resolve, reject) => {
