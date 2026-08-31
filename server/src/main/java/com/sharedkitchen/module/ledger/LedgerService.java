@@ -5,9 +5,6 @@ import com.alibaba.excel.write.style.column.LongestMatchColumnWidthStyleStrategy
 import com.sharedkitchen.common.BusinessException;
 import com.sharedkitchen.module.kitchen.KitchenMember;
 import com.sharedkitchen.module.kitchen.KitchenMemberRepository;
-import com.sharedkitchen.module.order.Order;
-import com.sharedkitchen.module.order.OrderItem;
-import com.sharedkitchen.module.order.OrderItemRepository;
 import com.sharedkitchen.module.user.UserRepository;
 import java.io.File;
 import java.time.LocalDate;
@@ -32,62 +29,16 @@ public class LedgerService {
     private final LedgerEntryRepository ledgerRepository;
     private final LedgerCategoryRepository categoryRepository;
     private final KitchenMemberRepository memberRepository;
-    private final OrderItemRepository orderItemRepository;
-    private final com.sharedkitchen.module.order.OrderRepository orderRepository;
     private final UserRepository userRepository;
 
     public LedgerService(LedgerEntryRepository ledgerRepository,
                          LedgerCategoryRepository categoryRepository,
                          KitchenMemberRepository memberRepository,
-                         OrderItemRepository orderItemRepository,
-                         com.sharedkitchen.module.order.OrderRepository orderRepository,
                          UserRepository userRepository) {
         this.ledgerRepository = ledgerRepository;
         this.categoryRepository = categoryRepository;
         this.memberRepository = memberRepository;
-        this.orderItemRepository = orderItemRepository;
-        this.orderRepository = orderRepository;
         this.userRepository = userRepository;
-    }
-
-    /** 订单完成 → 自动收入流水（由 OrderService 在同一事务内调用）。 */
-    @Transactional
-    public void recordOrderIncome(Order order) {
-        if (ledgerRepository.findByOrderIdAndType(order.getId(), LedgerEntry.TYPE_INCOME).isPresent()) {
-            return; // 幂等：唯一约束兜底 + 显式检查
-        }
-        LedgerEntry e = new LedgerEntry();
-        e.setKitchenId(order.getKitchenId());
-        e.setType(LedgerEntry.TYPE_INCOME);
-        e.setSource(LedgerEntry.SOURCE_ORDER);
-        e.setOrderId(order.getId());
-        e.setCategory("菜品销售");
-        e.setAmountFen(order.getTotalFen());
-        e.setDineDate(order.getDineDate());
-        e.setRemark("订单 #" + order.getId());
-        e.setCreatedBy(order.getBuyerId());
-        e.setCreatedAt(now());
-        ledgerRepository.save(e);
-    }
-
-    /** 退单 → 自动冲销流水。 */
-    @Transactional
-    public void recordOrderRefund(Order order) {
-        if (ledgerRepository.findByOrderIdAndType(order.getId(), LedgerEntry.TYPE_REFUND).isPresent()) {
-            return;
-        }
-        LedgerEntry e = new LedgerEntry();
-        e.setKitchenId(order.getKitchenId());
-        e.setType(LedgerEntry.TYPE_REFUND);
-        e.setSource(LedgerEntry.SOURCE_ORDER);
-        e.setOrderId(order.getId());
-        e.setCategory("菜品销售");
-        e.setAmountFen(order.getTotalFen());
-        e.setDineDate(LocalDate.now().toString());
-        e.setRemark("订单 #" + order.getId() + " 退款");
-        e.setCreatedBy(order.getBuyerId());
-        e.setCreatedAt(now());
-        ledgerRepository.save(e);
     }
 
     // ---------- 账本分类（每厨房可自定义） ----------
@@ -146,27 +97,6 @@ public class LedgerService {
         categoryRepository.delete(c);
     }
 
-    private void seedDefaultCategories(Long kitchenId) {
-        String t = now();
-        List<String> all = new ArrayList<>(DEFAULT_EXPENSE_CATEGORIES);
-        for (String name : all) {
-            LedgerCategory c = new LedgerCategory();
-            c.setKitchenId(kitchenId);
-            c.setType(LedgerCategory.TYPE_EXPENSE);
-            c.setName(name);
-            c.setCreatedAt(t);
-            categoryRepository.save(c);
-        }
-        for (String name : DEFAULT_INCOME_CATEGORIES) {
-            LedgerCategory c = new LedgerCategory();
-            c.setKitchenId(kitchenId);
-            c.setType(LedgerCategory.TYPE_INCOME);
-            c.setName(name);
-            c.setCreatedAt(t);
-            categoryRepository.save(c);
-        }
-    }
-
     /** 手动记一笔（主账号/成员账号）。 */
     @Transactional
     public LedgerEntryView addManual(Long userId, Long kitchenId, ManualEntryReq req) {
@@ -194,15 +124,12 @@ public class LedgerService {
         return toView(e);
     }
 
-    /** 删除手动流水（订单自动流水不可删，只能退单冲销）。 */
+    /** 删除流水（账本独立，任何来源均可删）。 */
     @Transactional
     public void deleteManual(Long userId, Long entryId) {
         LedgerEntry e = ledgerRepository.findById(entryId)
                 .orElseThrow(() -> new BusinessException(404, "流水不存在"));
         requireMember(e.getKitchenId(), userId);
-        if (LedgerEntry.SOURCE_ORDER.equals(e.getSource())) {
-            throw new BusinessException("订单流水不可删除，退款请走订单退单流程");
-        }
         ledgerRepository.delete(e);
     }
 
@@ -246,31 +173,12 @@ public class LedgerService {
         return new MonthSummary(income, refund, expense, income - refund - expense, days);
     }
 
-    /** 菜品销售统计（当月已完成订单）。 */
-    public List<DishStat> dishStats(Long userId, Long kitchenId, String month) {
-        requireMember(kitchenId, userId);
-        String m = validMonth(month);
-        Map<String, long[]> byDish = new LinkedHashMap<>(); // name -> [qty, salesFen]
-        for (Order order : completedOrdersOfMonth(kitchenId, m)) {
-            for (OrderItem item : orderItemRepository.findByOrderIdIn(List.of(order.getId()))) {
-                long[] agg = byDish.computeIfAbsent(item.getDishName(), k -> new long[2]);
-                agg[0] += item.getQuantity();
-                agg[1] += item.getPriceFen() * item.getQuantity();
-            }
-        }
-        return byDish.entrySet().stream()
-                .sorted((a, b) -> Long.compare(b.getValue()[1], a.getValue()[1]))
-                .map(k -> new DishStat(k.getKey(), k.getValue()[0], k.getValue()[1]))
-                .toList();
-    }
-
     /** 生成月度账本 Excel（4 Sheet），返回下载相对 URL。 */
     public String exportExcel(Long userId, Long kitchenId, String month) {
         requireMember(kitchenId, userId);
         String m = validMonth(month);
         MonthSummary s = summary(userId, kitchenId, m);
         List<LedgerEntryView> entries = list(userId, kitchenId, m);
-        List<DishStat> stats = dishStats(userId, kitchenId, m);
 
         List<List<String>> summaryRows = List.of(
                 List.of("期间收入合计(元)", fen(s.income())),
@@ -291,13 +199,6 @@ public class LedgerService {
                 .map(e -> List.of(e.date(), e.category(),
                         "", fen(e.amountFen()), e.remark()))
                 .toList();
-        long totalSales = stats.stream().mapToLong(DishStat::salesFen).sum();
-        List<List<String>> statRows = stats.stream()
-                .map(d -> List.of(d.name(), String.valueOf(d.quantity()),
-                        fen(d.salesFen()),
-                        totalSales == 0 ? "0%" : (d.salesFen() * 100 / totalSales) + "%"))
-                .toList();
-
         try {
             File dir = new File(EXPORT_DIR);
             if (!dir.exists()) dir.mkdirs();
@@ -315,26 +216,11 @@ public class LedgerService {
             com.alibaba.excel.write.metadata.WriteSheet sheet3 =
                     EasyExcel.writerSheet(2, "支出明细").head(List.of(List.of("日期", "分类", "订单号", "金额(元)", "备注"))).build();
             excelWriter.write(expenseRows.isEmpty() ? List.of(List.of("", "", "", "", "")) : expenseRows, sheet3);
-            com.alibaba.excel.write.metadata.WriteSheet sheet4 =
-                    EasyExcel.writerSheet(3, "菜品销售").head(List.of(List.of("菜品", "销量", "销售额(元)", "占比"))).build();
-            excelWriter.write(statRows.isEmpty() ? List.of(List.of("", "", "", "")) : statRows, sheet4);
             excelWriter.finish();
             return "/files/exports/" + filename;
         } catch (Exception e) {
             throw new BusinessException("账本导出失败，请重试");
         }
-    }
-
-    private List<Order> completedOrdersOfMonth(Long kitchenId, String month) {
-        YearMonth ym = YearMonth.parse(month);
-        String from = ym.atDay(1).toString();
-        String to = ym.atEndOfMonth().toString();
-        return orderRepository
-                .findByKitchenIdAndStatusOrderByCreatedAtDesc(kitchenId, "COMPLETED")
-                .stream()
-                .filter(o -> o.getDineDate().compareTo(from) >= 0
-                        && o.getDineDate().compareTo(to) <= 0)
-                .toList();
     }
 
     private String fen(Long amountFen) {
@@ -353,6 +239,26 @@ public class LedgerService {
                 .anyMatch(c -> c.getType().equals(type) && c.getName().equals(category.trim()));
         if (!allowed) {
             throw new BusinessException("不支持的分类，可在分类管理中添加");
+        }
+    }
+
+    private void seedDefaultCategories(Long kitchenId) {
+        String t = now();
+        for (String name : DEFAULT_EXPENSE_CATEGORIES) {
+            LedgerCategory c = new LedgerCategory();
+            c.setKitchenId(kitchenId);
+            c.setType(LedgerCategory.TYPE_EXPENSE);
+            c.setName(name);
+            c.setCreatedAt(t);
+            categoryRepository.save(c);
+        }
+        for (String name : DEFAULT_INCOME_CATEGORIES) {
+            LedgerCategory c = new LedgerCategory();
+            c.setKitchenId(kitchenId);
+            c.setType(LedgerCategory.TYPE_INCOME);
+            c.setName(name);
+            c.setCreatedAt(t);
+            categoryRepository.save(c);
         }
     }
 
@@ -404,5 +310,4 @@ public class LedgerService {
 
     public record DayPoint(String date, long incomeFen, long expenseFen) {}
 
-    public record DishStat(String name, long quantity, long salesFen) {}
 }

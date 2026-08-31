@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { theme } from '@/styles/theme';
 import { ledgerApi } from '@/api/ledger';
-import type { LedgerEntryView, MonthSummary, DishStat } from '@/api/ledger';
+import type { LedgerEntryView, MonthSummary } from '@/api/ledger';
 import { getCurrentKitchenId } from '@/api/kitchen';
 import { getApiBase } from '@/api/config';
 import { onShow } from '@dcloudio/uni-app';
@@ -13,7 +13,6 @@ const kitchenId = ref<number | null>(getCurrentKitchenId());
 const month = ref(monthStr());
 const summary = ref<MonthSummary>({ income: 0, refund: 0, expense: 0, balance: 0, days: [] });
 const entries = ref<LedgerEntryView[]>([]);
-const stats = ref<DishStat[]>([]);
 const showStats = ref(false);
 const loading = ref(true);
 const calVisible = ref(false);
@@ -221,14 +220,12 @@ async function load() {
   if (!kitchenId.value) return;
   loading.value = true;
   try {
-    const [s, list, dishStatList] = await Promise.all([
+    const [s, list] = await Promise.all([
       ledgerApi.summary(kitchenId.value, month.value),
       ledgerApi.list(kitchenId.value, month.value),
-      ledgerApi.dishStats(kitchenId.value, month.value).catch(() => []),
     ]);
     summary.value = s;
     entries.value = list;
-    stats.value = dishStatList;
   } catch {
     // toast 已统一弹出
   } finally {
@@ -273,10 +270,6 @@ function typeLabel(e: LedgerEntryView) {
 }
 
 function delEntry(e: LedgerEntryView) {
-  if (e.source === 'ORDER') {
-    uni.showToast({ title: '订单流水不可删，退款走退单流程', icon: 'none' });
-    return;
-  }
   uni.showModal({
     title: '删除流水',
     content: '确定删除这条手动流水？',
@@ -343,15 +336,6 @@ function delEntry(e: LedgerEntryView) {
       <view class="trend-box">
         <canvas id="trend-canvas" class="trend-canvas" />
       </view>
-
-      <text class="sec-title stats-title">菜品销售排行</text>
-      <view v-for="(s, i) in stats" :key="s.name" class="stat-row">
-        <text class="stat-rank" :class="{ top: i < 3 }">{{ i + 1 }}</text>
-        <text class="stat-name">{{ s.name }}</text>
-        <text class="stat-qty">×{{ s.quantity }}</text>
-        <text class="stat-sales">¥{{ (s.salesFen / 100).toFixed(2) }}</text>
-      </view>
-      <view v-if="stats.length === 0" class="chart-empty"><text>本月暂无完成订单</text></view>
     </view>
 
     <!-- 流水列表（按日分组） -->

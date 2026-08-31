@@ -117,7 +117,7 @@ const canvasInk = await page.evaluate(() => {
 });
 ok('消费曲线canvas已绘制', canvasInk > 500, `非透明像素 ${canvasInk}`);
 const ledgerText = await page.evaluate(() => document.body.innerText);
-ok('菜品排行出现(此前被变量遮蔽bug隐藏)', ledgerText.includes('菜品销售排行') && !ledgerText.includes('本月暂无完成订单'));
+ok('菜品销售排行已随账本独立而移除', !ledgerText.includes('菜品销售排行'));
 await page.screenshot({ path: `${SHOT_DIR}/03-ledger-stats-dark.png`, fullPage: true });
 
 // 4. 账本浅色截图 + 记一笔弹层

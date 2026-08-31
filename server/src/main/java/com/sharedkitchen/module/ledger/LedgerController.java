@@ -66,13 +66,6 @@ public class LedgerController {
         return ApiResponse.ok(ledgerService.summary(userId(request), kitchenId, month));
     }
 
-    @GetMapping("/dish-stats")
-    public ApiResponse<List<LedgerService.DishStat>> dishStats(
-            HttpServletRequest request, @PathVariable Long kitchenId,
-            @RequestParam(required = false) String month) {
-        return ApiResponse.ok(ledgerService.dishStats(userId(request), kitchenId, month));
-    }
-
     public record CategoryReq(@NotBlank String type, @NotBlank String name) {}
 
     // ----- 账本分类（每厨房可自定义） -----

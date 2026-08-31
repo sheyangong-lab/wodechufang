@@ -28,12 +28,6 @@ export interface MonthSummary {
   days: DayPoint[];
 }
 
-export interface DishStat {
-  name: string;
-  quantity: number;
-  salesFen: number;
-}
-
 export interface LedgerCategoryView {
   id: number;
   type: 'INCOME' | 'EXPENSE';
@@ -56,8 +50,6 @@ export const ledgerApi = {
     request<void>({ url: `/api/kitchens/${kitchenId}/ledger/entries/${id}`, method: 'DELETE' }),
   summary: (kitchenId: number, month: string) =>
     request<MonthSummary>({ url: `/api/kitchens/${kitchenId}/ledger/summary?month=${month}` }),
-  dishStats: (kitchenId: number, month: string) =>
-    request<DishStat[]>({ url: `/api/kitchens/${kitchenId}/ledger/dish-stats?month=${month}` }),
   /** 分类列表（厨房首次使用时服务端自动补默认分类） */
   categories: (kitchenId: number) =>
     request<LedgerCategoryView[]>({

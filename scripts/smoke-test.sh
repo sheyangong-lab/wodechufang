@@ -69,10 +69,9 @@ OID2=$(echo "$O2" | python3 -c "import sys,json;print(json.load(sys.stdin)['data
 R=$(curl -s -X POST $BASE/api/orders/$OID2/complete -H "$HA")
 check "完成订单" "$R" '"status":"COMPLETED"'
 
-# 5. 账本: 自动入账/手动支出/自定义分类/汇总/导出
-R=$(curl -s $BASE/api/kitchens/$KID/ledger/summary?month=$(date +%Y-%m) -H "$HA")
-check "账本含自动收入(完成单1280分)" "$R" '"income":1280'
-check "账本含退款冲销3000分" "$R" '"refund":3000'
+# 5. 账本: 独立账本(不关联点菜)/手动支出/自定义分类/汇总/导出
+R=$(curl -s $BASE/api/kitchens/$KID/ledger/entries?month=$(date +%Y-%m) -H "$HA")
+if echo "$R" | grep -Fq '"source":"ORDER"'; then bad "账本已与点菜解耦(不应有订单流水)"; else ok "账本与点菜解耦(订单不入账)"; fi
 R=$(curl -s $BASE/api/kitchens/$KID/ledger/categories -H "$HA")
 check "账本分类懒加载默认(食材采购)" "$R" '"name":"食材采购"'
 R=$(curl -s -X POST $BASE/api/kitchens/$KID/ledger/categories -H "$J" -H "$HA" -d '{"type":"EXPENSE","name":"宠物开销"}')
@@ -88,7 +87,7 @@ R=$(curl -s $BASE/api/kitchens/$KID/ledger/export?month=$(date +%Y-%m) -H "$HA")
 XURL=$(echo "$R" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['url'])" 2>/dev/null)
 curl -s -o /tmp/smoke-ledger.xlsx "$BASE$XURL"
 SHEETS=$(python3 -c "import zipfile;print(len([n for n in zipfile.ZipFile('/tmp/smoke-ledger.xlsx').namelist() if 'worksheets/sheet' in n]))" 2>/dev/null || echo 0)
-[ "$SHEETS" = "4" ] && ok "Excel导出4 Sheet有效" || bad "Excel导出 (Sheet数=$SHEETS)"
+[ "$SHEETS" = "3" ] && ok "Excel导出3 Sheet有效" || bad "Excel导出 (Sheet数=$SHEETS)"
 
 # 6. 冰箱: 三态/图片/匹配/临期
 TODAY=$(date +%F); AGO8=$(date -d "-8 days" +%F 2>/dev/null || date -v-8d +%F)
