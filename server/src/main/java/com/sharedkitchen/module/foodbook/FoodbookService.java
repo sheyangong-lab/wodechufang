@@ -26,7 +26,7 @@ public class FoodbookService {
 
     public List<FoodbookItem> page(Long userId, Long kitchenId, String date) {
         requireMember(kitchenId, userId);
-        return repository.findByKitchenIdAndPageDateOrderByZIndexAscIdAsc(kitchenId, validDate(date));
+        return repository.findByKitchenIdAndPageDateOrderByIdAsc(kitchenId, validDate(date));
     }
 
     /** 批量保存贴纸（完成按钮：一次落库当天所有新贴纸）。 */
