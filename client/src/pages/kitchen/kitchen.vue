@@ -34,7 +34,6 @@ const guide = [
 ];
 
 onShow(async () => {
-  try { uni.hideTabBar({ animation: false }); } catch { /* 忽略 */ }
   loggedIn.value = !!loadUser();
   if (!loggedIn.value) {
     hasKitchen.value = false;

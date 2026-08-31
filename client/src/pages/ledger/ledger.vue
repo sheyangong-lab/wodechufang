@@ -201,7 +201,6 @@ function drawTrend() {
 }
 
 onShow(load);
-  try { uni.hideTabBar({ animation: false }); } catch { /* 忽略 */ }
 
 function prevMonth() {
   const [y, m] = month.value.split('-').map(Number);

@@ -34,7 +34,6 @@ const stateDefs = computed(() => [
 ]);
 
 onShow(() => {
-  try { uni.hideTabBar({ animation: false }); } catch { /* 忽略 */ }
   kitchenId.value = getCurrentKitchenId();
   if (!kitchenId.value) return;
   load();

@@ -170,7 +170,6 @@ function onNickname(nickname: string) {
 }
 
 onShow(() => {
-  try { uni.hideTabBar({ animation: false }); } catch { /* 忽略 */ }
   user.value = loadUser();
 });
 

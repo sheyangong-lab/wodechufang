@@ -85,5 +85,11 @@ body {
 .uni-tabbar {
   background-color: var(--sk-tab-bg, #ffffff) !important;
 }
+/* 底栏由自绘 CustomTabbar 承担：原生条与其占位符整体隐藏
+   （uni.hideTabBar 在真机 H5 端会残留 50px 白色占位） */
+.uni-tabbar,
+.uni-placeholder {
+  display: none !important;
+}
 /* #endif */
 </style>

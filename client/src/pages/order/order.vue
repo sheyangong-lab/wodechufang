@@ -33,7 +33,6 @@ const dateText = computed(() => (dateFilter.value ? dateFilter.value : '不限�
 const announcement = computed(() => loadKitchenCache()?.announcement || '');
 
 onShow(() => {
-  try { uni.hideTabBar({ animation: false }); } catch { /* 忽略 */ }
   kitchenId.value = getCurrentKitchenId();
   const cache = loadKitchenCache();
   // 主账号和成员都有订单处理权
