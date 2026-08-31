@@ -284,6 +284,7 @@ function delEntry(e: LedgerEntryView) {
 
 <template>
   <view class="page">
+    <view class="page-scroll">
     <!-- 月份切换（点月份打开日历直接跳月） -->
     <view class="month-row">
       <text class="arrow" hover-class="press-dim" @tap="prevMonth">‹</text>
@@ -373,14 +374,19 @@ function delEntry(e: LedgerEntryView) {
       @close="calVisible = false"
     />
   
+        </view>
     <CustomTabbar current="ledger" />
   </view>
 </template>
 
 <style lang="scss" scoped>
 .page {
-  min-height: 100vh;
-  background-color: v-bind('theme.bg');
+  display: flex; flex-direction: column;
+  height: 100vh; overflow: hidden;
+}
+.page-scroll {
+  flex: 1; overflow-y: auto;
+  min-height: 0;
   padding: 24rpx;
   padding-bottom: 60rpx;
   box-sizing: border-box;

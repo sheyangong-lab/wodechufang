@@ -54,7 +54,9 @@ function go(t: TabDef) {
 
 <style lang="scss" scoped>
 .ctb {
-  position: fixed; left: 0; right: 0; bottom: 0;
+  /* 文档流布局（页面根为 flex 列）：不依赖 fixed，规避 WebView containing-block 兼容问题 */
+  position: relative;
+  flex-shrink: 0;
   display: flex;
   background: v-bind('theme.tabBarBg');
   border-top: 2rpx solid v-bind('theme.divider');

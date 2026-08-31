@@ -4,13 +4,11 @@
  *      → 页面内完成本地分割+上传 → 校验上传结果图四角透明、中心不透明。
  */
 import { chromium } from 'playwright';
-import { chromium } from 'playwright';
 import { execSync } from 'child_process';
 
 const API = 'http://127.0.0.1:8080';
 const APP = 'http://localhost:5173';
 
-import { execSync } from 'child_process';
 
 /** Mihomo TUN 会吞 node 的出站 POST，改用 curl 子进程（curl 一直正常） */
 function api(method, path, body, token) {

@@ -182,6 +182,7 @@ function onLogout() {
 
 <template>
   <view class="page">
+    <view class="page-scroll">
     <!-- 头部（对照蓝本截图13，暖黄渐变） -->
     <view class="header" hover-class="press-dim" @tap="user ? editNickname() : goLogin()">
       <view class="user">
@@ -281,12 +282,21 @@ function onLogout() {
       @close="serverDialogVisible = false"
     />
   
+        </view>
     <CustomTabbar current="me" />
   </view>
 </template>
 
 <style lang="scss" scoped>
-.page { min-height: 100vh; background: v-bind('theme.headerGradient'); padding: 24rpx; box-sizing: border-box; }
+.page {
+  display: flex; flex-direction: column;
+  height: 100vh; overflow: hidden;
+}
+.page-scroll {
+  flex: 1; overflow-y: auto;
+  min-height: 0;
+  min-height: 100vh; background: v-bind('theme.headerGradient'); padding: 24rpx; box-sizing: border-box;
+}
 .header { display: flex; align-items: center; justify-content: space-between; padding: 16rpx 8rpx; }
 .user { display: flex; align-items: center; gap: 20rpx; }
 .avatar {

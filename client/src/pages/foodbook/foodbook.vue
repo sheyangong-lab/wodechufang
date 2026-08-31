@@ -318,6 +318,7 @@ async function exportPage() {
 
 <template>
   <view class="page">
+    <view class="page-scroll">
     <!-- 日期切换 -->
     <view class="date-row">
       <text class="arrow" hover-class="press-dim" @tap="shiftDate(-1)">‹</text>
@@ -380,14 +381,19 @@ async function exportPage() {
       @close="addSheetVisible = false"
     />
 
+        </view>
     <CustomTabbar current="foodbook" />
   </view>
 </template>
 
 <style lang="scss" scoped>
 .page {
-  min-height: 100vh;
-  background-color: v-bind('theme.bg');
+  display: flex; flex-direction: column;
+  height: 100vh; overflow: hidden;
+}
+.page-scroll {
+  flex: 1; overflow-y: auto;
+  min-height: 0;
   padding: 24rpx;
   box-sizing: border-box;
 }

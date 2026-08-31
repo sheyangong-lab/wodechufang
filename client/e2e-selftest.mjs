@@ -49,6 +49,7 @@ const goto = async (path) => {
 };
 
 // 页面内造数据（Chromium 网络栈）
+await page.goto(`${APP}/#/pages/profile/profile`, { waitUntil: 'domcontentloaded' });
 const data = await setupData(page, 'http://127.0.0.1:8080');
 const token = data.token;
 const kid = data.kitchen.id;

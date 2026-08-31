@@ -121,6 +121,7 @@ function act(o: OrderView, action: 'complete' | 'refund-request' | 'refund-appro
 
 <template>
   <view class="page">
+    <view class="page-scroll">
     <!-- 筛选条（对照蓝本截图7） -->
     <view class="filters">
       <text class="filter-btn" hover-class="press-dim" @tap="calendarVisible = true">
@@ -209,14 +210,19 @@ function act(o: OrderView, action: 'complete' | 'refund-request' | 'refund-appro
       @close="calendarVisible = false"
     />
   
+        </view>
     <CustomTabbar current="orders" />
   </view>
 </template>
 
 <style lang="scss" scoped>
 .page {
-  min-height: 100vh;
-  background-color: v-bind('theme.bg');
+  display: flex; flex-direction: column;
+  height: 100vh; overflow: hidden;
+}
+.page-scroll {
+  flex: 1; overflow-y: auto;
+  min-height: 0;
   padding: 24rpx;
   padding-bottom: 60rpx;
   box-sizing: border-box;

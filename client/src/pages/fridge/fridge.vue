@@ -259,6 +259,7 @@ function removeOne(i: FItem) {
 
 <template>
   <view class="page">
+    <view class="page-scroll">
     <template v-if="canManage">
       <!-- 状态筛选（对照蓝本截图15） -->
       <view class="toolbar">
@@ -392,14 +393,19 @@ function removeOne(i: FItem) {
       @close="catDialogVisible = false"
     />
   
+        </view>
     <CustomTabbar current="fridge" />
   </view>
 </template>
 
 <style lang="scss" scoped>
 .page {
-  min-height: 100vh;
-  background-color: v-bind('theme.bg');
+  display: flex; flex-direction: column;
+  height: 100vh; overflow: hidden;
+}
+.page-scroll {
+  flex: 1; overflow-y: auto;
+  min-height: 0;
   padding: 24rpx;
   padding-bottom: 160rpx;
   box-sizing: border-box;
