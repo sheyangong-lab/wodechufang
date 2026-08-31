@@ -112,5 +112,12 @@ body {
 .uni-placeholder {
   display: none !important;
 }
+/* --showtabbar 还会在 uni-page-wrapper 末尾生成 50px 的 ::after 占位伪元素：
+   全视口高的页面之后跟着它，文档比可视区多 50px，整页可被拖动——
+   顶部标题滑进状态栏被遮一半、底栏相对内容错位。必须一并杀掉。 */
+.uni-app--showtabbar uni-page-wrapper::after {
+  content: none !important;
+  display: none !important;
+}
 /* #endif */
 </style>
