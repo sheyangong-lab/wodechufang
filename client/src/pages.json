@@ -49,6 +49,10 @@
       "style": { "navigationBarTitleText": "类别管理", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
     },
     {
+      "path": "pages/fridge/edit",
+      "style": { "navigationBarTitleText": "编辑食材", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
       "path": "pages/fridge/match",
       "style": { "navigationBarTitleText": "匹配菜谱", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
     },
@@ -59,6 +63,18 @@
     {
       "path": "pages/ledger/add",
       "style": { "navigationBarTitleText": "记一笔", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
+      "path": "pages/foodbook/foodbook",
+      "style": { "navigationBarTitleText": "食本", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
+      "path": "pages/basket/basket",
+      "style": { "navigationBarTitleText": "菜篮", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
+      "path": "pages/plan/plan",
+      "style": { "navigationBarTitleText": "饮食计划", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
     },
     {
       "path": "pages/sync/sync",

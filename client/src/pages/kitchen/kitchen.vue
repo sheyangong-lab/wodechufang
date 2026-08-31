@@ -34,6 +34,7 @@ const guide = [
 ];
 
 onShow(async () => {
+  try { uni.hideTabBar({ animation: false }); } catch { /* 忽略 */ }
   loggedIn.value = !!loadUser();
   if (!loggedIn.value) {
     hasKitchen.value = false;
@@ -127,6 +128,10 @@ function toggleSearch() {
 function onSearchInput(e: any) {
   keyword.value = e.detail.value;
   loadDishes();
+}
+
+function editDish(d: DishView) {
+  uni.navigateTo({ url: `/pages/dish/edit?id=${d.id}` });
 }
 
 function goCategories() {
@@ -334,12 +339,15 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
               <text v-if="d.categoryName" class="dish-cat">{{ d.categoryName }}</text>
               <view class="dish-bottom">
                 <text class="dish-price">¥{{ fenToYuan(d.priceFen) }}</text>
-                <text
-                  v-if="mode === 'order'"
-                  class="quick-add"
-                  hover-class="press-sink"
-                  @tap.stop="quickAdd(d)"
-                >＋</text>
+                <view class="dish-ops">
+                  <text v-if="mode === 'manage'" class="mini-edit" hover-class="press-dim" @tap.stop="editDish(d)">编辑</text>
+                  <text
+                    v-if="mode === 'order'"
+                    class="quick-add"
+                    hover-class="press-sink"
+                    @tap.stop="quickAdd(d)"
+                  >＋</text>
+                </view>
               </view>
             </view>
           </view>
@@ -366,6 +374,8 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
         @close="addSheetVisible = false"
       />
     </block>
+  
+    <CustomTabbar current="kitchen" />
   </view>
 </template>
 
@@ -508,6 +518,12 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
 }
 .dish-price { font-size: 30rpx; font-weight: 700; color: v-bind('theme.income'); }
 .dish-bottom { display: flex; align-items: center; justify-content: space-between; margin-top: 10rpx; }
+.dish-ops { display: flex; align-items: center; gap: 14rpx; }
+.mini-edit {
+  font-size: 22rpx; color: v-bind('theme.primaryBtn');
+  border: 2rpx solid v-bind('theme.primaryBtn'); border-radius: 8rpx;
+  padding: 4rpx 14rpx;
+}
 .quick-add {
   width: 52rpx; height: 52rpx; border-radius: 50%;
   background: v-bind('theme.primaryBtn'); color: #fff;
@@ -517,7 +533,7 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
 .bottom-bar {
   position: fixed; left: 24rpx; right: 24rpx;
   /* 几乎贴着 tabBar，仅留防误触的丝缝 */
-  bottom: calc(110rpx + env(safe-area-inset-bottom));
+  bottom: calc(140rpx + env(safe-area-inset-bottom));
   display: flex; align-items: center; gap: 24rpx;
   background: v-bind('theme.card'); border-radius: 48rpx; padding: 16rpx 32rpx;
   box-shadow: 0 6rpx 20rpx rgba(200, 160, 80, 0.28);

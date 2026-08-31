@@ -5,6 +5,7 @@ import { authApi, loadUser, logout } from '@/api/auth';
 import type { UserView } from '@/api/auth';
 import { onShow } from '@dcloudio/uni-app';
 import { ref } from 'vue';
+import CustomTabbar from '@/components/custom-tabbar.vue';
 import InputDialog from '@/components/input-dialog.vue';
 import ActionSheet from '@/components/action-sheet.vue';
 import { getApiBase, setApiBase } from '@/api/config';
@@ -18,8 +19,8 @@ interface GridItem {
 const user = ref<UserView | null>(loadUser());
 const grid: GridItem[] = [
   { key: '厨房管理', icon: '/static/icons/pan.png', url: '/pages/profile/manage' },
-  { key: '厨房菜篮', icon: '/static/icons/basket.png' },
-  { key: '饮食计划', icon: '/static/icons/grid-calendar.png' },
+  { key: '厨房菜篮', icon: '/static/icons/basket.png', url: '/pages/basket/basket' },
+  { key: '饮食计划', icon: '/static/icons/grid-calendar.png', url: '/pages/plan/plan' },
   { key: '数据统计', icon: '/static/icons/grid-chart.png' },
   { key: '更多功能', icon: '/static/icons/grid-dots.png' },
 ];
@@ -169,6 +170,7 @@ function onNickname(nickname: string) {
 }
 
 onShow(() => {
+  try { uni.hideTabBar({ animation: false }); } catch { /* 忽略 */ }
   user.value = loadUser();
 });
 
@@ -279,6 +281,8 @@ function onLogout() {
       @confirm="onSaveServer"
       @close="serverDialogVisible = false"
     />
+  
+    <CustomTabbar current="me" />
   </view>
 </template>
 

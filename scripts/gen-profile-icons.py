@@ -223,12 +223,25 @@ def pan3d(name, rim, body, body_in, hi, dark, egg_white, yolk, yolk_hi, shadow):
     save(im, name)
 
 
+def book(color_body, color_accent, name):
+    """书本图标（食本 tab）：打开的书页 + 书签。"""
+    im, d = canvas()
+    # 左页
+    d.polygon([(16*SS, 20*SS), (48*SS, 30*SS), (48*SS, 82*SS), (16*SS, 72*SS)], outline=color_body, width=LW)
+    # 右页
+    d.polygon([(80*SS, 20*SS), (48*SS, 30*SS), (48*SS, 82*SS), (80*SS, 72*SS)], outline=color_body, width=LW)
+    # 中缝
+    rounded_line(d, [(48*SS, 30*SS), (48*SS, 82*SS)], color_body, width=4*SS)
+    # 书签
+    d.polygon([(62*SS, 26*SS), (74*SS, 22*SS), (74*SS, 42*SS), (68*SS, 36*SS), (62*SS, 42*SS)], fill=color_accent)
+    save(im, name)
+
+
 if __name__ == '__main__':
     clipboard()
     calendar()
     coin()
     chart()
-    book()
     chat()
     headset()
     dots()
@@ -237,6 +250,9 @@ if __name__ == '__main__':
     # 平底锅：扁平灰版（保留备用）+ 伪3D 双色版（正式使用）
     pan(GRAY, AMBER, 'pan')
     pan(AMBER, GRAY, 'pan-active')
+    # 食本 tab 图标：书本（灰=未选中 / 琥珀=选中）
+    book((150, 135, 113, 255), (150, 135, 113, 255), 'tab-book')
+    book((239, 166, 60, 255), (255, 224, 160, 255), 'tab-book-active')
     # 伪3D 常规版：暖灰锅体 + 琥珀蛋黄
     pan3d('pan',
           rim=(111, 98, 80, 255),        # 锅沿深暖灰

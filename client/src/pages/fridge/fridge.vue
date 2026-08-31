@@ -8,6 +8,7 @@ import type { FridgeItemView as FItem } from '@/api/fridge';
 import { pushUnreadNotices } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
+import CustomTabbar from '@/components/custom-tabbar.vue';
 import InputDialog from '@/components/input-dialog.vue';
 
 const kitchenId = ref<number | null>(getCurrentKitchenId());
@@ -33,6 +34,7 @@ const stateDefs = computed(() => [
 ]);
 
 onShow(() => {
+  try { uni.hideTabBar({ animation: false }); } catch { /* 忽略 */ }
   kitchenId.value = getCurrentKitchenId();
   if (!kitchenId.value) return;
   load();
@@ -156,7 +158,7 @@ function tipMatch() {
 }
 
 // ----- 左滑操作（像聊天列表左滑）：显示「改数量 / 删除」 -----
-const BTN_W = uni.upx2px(240);
+const BTN_W = uni.upx2px(360);
 const openedId = ref<number | null>(null);
 const dragId = ref<number | null>(null);
 const dragDx = ref(0);
@@ -216,6 +218,10 @@ function onTouchEnd(id: number) {
 
 function onItemTap() {
   if (openedId.value !== null) openedId.value = null;
+}
+
+function openEdit(i: FItem) {
+  uni.navigateTo({ url: `/pages/fridge/edit?itemId=${i.id}` });
 }
 
 function openQty(i: FItem) {
@@ -322,6 +328,7 @@ function removeOne(i: FItem) {
           </view>
           <view v-for="i in items" :key="i.id" class="swipe-cell">
             <view class="swipe-actions">
+              <text class="swipe-btn edit" hover-class="press-dim" @tap.stop="openEdit(i)">编辑</text>
               <text class="swipe-btn qty" hover-class="press-dim" @tap.stop="openQty(i)">改数量</text>
               <text class="swipe-btn del" hover-class="press-dim" @tap.stop="removeOne(i)">删除</text>
             </view>
@@ -385,6 +392,8 @@ function removeOne(i: FItem) {
       @confirm="onAddCategory"
       @close="catDialogVisible = false"
     />
+  
+    <CustomTabbar current="fridge" />
   </view>
 </template>
 
@@ -458,6 +467,7 @@ function removeOne(i: FItem) {
   width: 120rpx; display: flex; align-items: center; justify-content: center;
   color: #fff; font-size: 26rpx; font-weight: 600;
 }
+.swipe-btn.edit { background: v-bind('theme.success'); }
 .swipe-btn.qty { background: v-bind('theme.primaryBtn'); }
 .swipe-btn.del { background: v-bind('theme.danger'); }
 .swipe-content {
@@ -485,7 +495,7 @@ function removeOne(i: FItem) {
 
 .bottom-ops {
   position: fixed; left: 0; right: 0;
-  bottom: calc(100rpx + env(safe-area-inset-bottom));
+  bottom: calc(140rpx + env(safe-area-inset-bottom));
   display: flex;
   background: v-bind('theme.card');
   padding: 18rpx 12rpx;

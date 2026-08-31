@@ -151,6 +151,29 @@ if [ "$R1" = "$R2" ]; then ok "幂等重放返回相同响应"; else bad "幂等
 CNT=$(curl -s "$BASE/api/kitchens/$KID/ledger/entries?month=$(date +%Y-%m)" -H "$HA" | grep -o '"amountFen":777' | wc -l)
 [ "$CNT" = "1" ] && ok "重放未产生重复流水" || bad "重放重复写入($CNT条)"
 
+# 7.10 菜篮: 下单用料生成 + 手动管理
+TODAY2=$(date +%F)
+R=$(curl -s -X POST "$BASE/api/kitchens/$KID/basket/generate?date=$TODAY2" -H "$HA")
+check "菜篮从下单用料生成" "$R" '"added":'
+R=$(curl -s $BASE/api/kitchens/$KID/basket/items -H "$HA")
+check "菜篮含缺的用料(番茄)" "$R" '"name":"番茄"'
+BIID=$(echo "$R" | python3 -c "import sys,json;print(json.load(sys.stdin)['data'][0]['id'])")
+R=$(curl -s -X POST $BASE/api/kitchens/$KID/basket/items/$BIID/toggle -H "$HA")
+check "菜篮勾选已买到" "$R" '"code":0'
+R=$(curl -s -X DELETE $BASE/api/kitchens/$KID/basket/items/$BIID -H "$HA")
+check "菜篮删除条目" "$R" '"code":0'
+
+# 7.11 饮食计划: 餐段配置/添加条目/删除
+R=$(curl -s -X PUT $BASE/api/kitchens/$KID/plan/slots -H "$J" -H "$HA" -d '{"slots":["早餐","午餐","下午茶","晚餐","夜宵","加餐"]}')
+check "自定义餐段(6段)" "$R" '"加餐"'
+R=$(curl -s -X POST $BASE/api/kitchens/$KID/plan/items -H "$J" -H "$HA" -d '{"date":"'"$TODAY2"'","slotIndex":4,"itemType":"CUSTOM","name":"周末火锅","imageUrl":"/files/x.jpg","remark":"备菜"}')
+check "添加自定义菜单" "$R" '"name":"周末火锅"'
+PID=$(echo "$R" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['id'])")
+R=$(curl -s "$BASE/api/kitchens/$KID/plan?date=$TODAY2" -H "$HA")
+check "当天计划含条目与餐段" "$R" '"周末火锅"'
+R=$(curl -s -X DELETE $BASE/api/kitchens/$KID/plan/items/$PID -H "$HA")
+check "移除计划条目" "$R" '"code":0'
+
 # 8. 后台: 概览/封禁解封
 R=$(curl -s $BASE/api/admin/overview -H "Authorization: Bearer $ATOK")
 check "后台概览" "$R" '"users":'

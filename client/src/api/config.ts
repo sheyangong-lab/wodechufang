@@ -3,7 +3,7 @@
  * 支持运行时修改：App 内「我 → 服务器设置」或直接改 DEFAULT_API_BASE 后重新构建。
  * 优先级：用户设置（本地存储）> DEFAULT_API_BASE。
  */
-export const DEFAULT_API_BASE = 'http://192.168.1.187:8080';
+export const DEFAULT_API_BASE = 'http://192.168.1.111:8080';
 
 const STORAGE_KEY = 'apiBase';
 

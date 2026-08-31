@@ -11,6 +11,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -94,6 +95,56 @@ public class AppBridgePlugin extends Plugin {
                 downloading.set(false);
                 out.delete();
                 call.reject("下载失败: " + e.getMessage());
+            }
+        });
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /** 保存 dataURL 图片到系统相册（食本导出）。 */
+    @PluginMethod
+    public void saveImage(PluginCall call) {
+        String dataUrl = call.getString("dataUrl", "");
+        String name = call.getString("name", "foodbook");
+        if (!dataUrl.contains(",")) {
+            call.reject("图片数据无效");
+            return;
+        }
+        Thread t = new Thread(() -> {
+            try {
+                byte[] bytes = android.util.Base64.decode(dataUrl.split(",", 2)[1], android.util.Base64.DEFAULT);
+                android.content.ContentResolver resolver = getContext().getContentResolver();
+                android.content.ContentValues values = new android.content.ContentValues();
+                values.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name + ".png");
+                values.put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png");
+                android.net.Uri uri;
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    values.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH,
+                            android.os.Environment.DIRECTORY_PICTURES + "/共享厨房");
+                    uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                } else {
+                    File dir = new File(android.os.Environment.getExternalStoragePublicDirectory(
+                            android.os.Environment.DIRECTORY_PICTURES), "共享厨房");
+                    if (!dir.exists()) dir.mkdirs();
+                    File out = new File(dir, name + ".png");
+                    uri = android.net.Uri.fromFile(out);
+                    values.clear();
+                }
+                if (uri == null) {
+                    call.reject("保存失败");
+                    return;
+                }
+                try (OutputStream os = resolver.openOutputStream(uri)) {
+                    os.write(bytes);
+                }
+                if (android.os.Build.VERSION.SDK_INT < 29) {
+                    // 低版本扫描媒体库
+                    Intent scan = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, uri);
+                    getContext().sendBroadcast(scan);
+                }
+                call.resolve();
+            } catch (Exception e) {
+                call.reject("保存失败: " + e.getMessage());
             }
         });
         t.setDaemon(true);

@@ -4,7 +4,7 @@
  */
 import { chromium } from 'playwright';
 
-const API = 'http://localhost:8080';
+const API = 'http://127.0.0.1:8080';
 const APP = 'http://localhost:5173';
 const SHOT_DIR = '/tmp/sk-shots';
 import { mkdirSync } from 'fs';
@@ -16,56 +16,74 @@ function ok(name, cond, extra = '') {
   else { fail++; console.log(`  ✗ ${name} ${extra}`); }
 }
 
-async function api(method, path, body, token) {
-  const res = await fetch(API + path, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  return res.json();
+
+
+
+/** 页面上下文内造数据（Chromium 网络栈不受 Mihomo TUN 影响） */
+async function setupData(page, apiBase) {
+  const r = await page.evaluate(async (A) => {
+    const call = async (method, path, body, token) => {
+      const res = await fetch(A + path, {
+        method,
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return res.json();
+    };
+    const phone = '137' + String(Math.floor(Math.random() * 1e8)).padStart(8, '0');
+    const reg = await call('POST', '/api/auth/register', { phone, smsCode: '1234' });
+    const token = reg.data.token;
+    const k = await call('POST', '/api/kitchens', { name: '自测厨房' }, token);
+    return { phone, token, kitchen: k.data };
+  }, apiBase);
+  return r;
 }
-
-const phone = `137${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}`;
-const reg = await api('POST', '/api/auth/register', { phone, smsCode: '1234' });
-const token = reg.data.token;
-const k = await api('POST', '/api/kitchens', { name: '自测厨房' }, token);
-const kid = k.data.id;
-await api('POST', `/api/kitchens/${kid}/categories`, { name: '荤菜' }, token);
-await api('POST', `/api/kitchens/${kid}/dishes`, { name: '番茄炒蛋', priceFen: 1280 }, token);
-await api('POST', `/api/kitchens/${kid}/dishes`, { name: '红烧肉', priceFen: 2880 }, token);
-const cats = await api('GET', `/api/kitchens/${kid}/ledger/categories`, null, token);
-const catByName = Object.fromEntries(cats.data.map((c) => [c.name, c.name]));
-await api('POST', `/api/kitchens/${kid}/ledger/entries`,
-  { type: 'EXPENSE', category: catByName['食材采购'], amountFen: 5000, remark: '买菜' }, token);
-await api('POST', `/api/kitchens/${kid}/ledger/entries`,
-  { type: 'EXPENSE', category: catByName['水电燃气'], amountFen: 3000, remark: '燃气' }, token);
-await api('POST', `/api/kitchens/${kid}/ledger/entries`,
-  { type: 'INCOME', category: catByName['菜品销售'], amountFen: 12800, remark: '订单' }, token);
-// 完成一单，让菜品销售排行有数据
-const dishList = await api('GET', `/api/kitchens/${kid}/dishes?mode=order`, null, token);
-const order = await api('POST', `/api/kitchens/${kid}/orders`,
-  { items: [{ dishId: dishList.data[0].id, quantity: 2 }] }, token);
-await api('POST', `/api/orders/${order.data.id}/complete`, null, token);
-
-const kitchenCache = JSON.stringify(k.data);
-const user = JSON.stringify({ id: 1, nickname: '自测用户', phoneMasked: phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2'), points: 66 });
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
 const pageErrors = [];
 page.on('pageerror', (e) => pageErrors.push(String(e)));
 
-await page.addInitScript(([t, kId, cache, u]) => {
+const goto = async (path) => {
+  await page.goto(`${APP}/#${path}`, { waitUntil: 'networkidle' });
+};
+
+// 页面内造数据（Chromium 网络栈）
+const data = await setupData(page, 'http://127.0.0.1:8080');
+const token = data.token;
+const kid = data.kitchen.id;
+await page.evaluate(([t, kId, cache, u]) => {
   localStorage.setItem('token', t);
   localStorage.setItem('kitchenId', kId);
   localStorage.setItem('kitchenCache', cache);
   localStorage.setItem('user', u);
-}, [token, String(kid), kitchenCache, user]);
+}, [token, String(kid), JSON.stringify(data.kitchen), JSON.stringify({ id: 1, nickname: '自测用户', phoneMasked: data.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2'), points: 0 })]);
 
-const goto = (path) => page.goto(`${APP}/#${path}`, { waitUntil: 'networkidle' });
+// 造业务数据（同样在页面上下文里）
+await page.evaluate(async ({ token, kid, base }) => {
+  const call = async (method, path, body) => {
+    const res = await fetch(base + path, {
+      method,
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return res.json();
+  };
+  await call('POST', `/api/kitchens/${kid}/categories`, { name: '荤菜' });
+  await call('POST', `/api/kitchens/${kid}/dishes`, { name: '番茄炒蛋', priceFen: 1280 });
+  await call('POST', `/api/kitchens/${kid}/dishes`, { name: '红烧肉', priceFen: 2880 });
+  const cats = await call('GET', `/api/kitchens/${kid}/ledger/categories`);
+  const byName = Object.fromEntries(cats.data.map((c) => [c.name, c.name]));
+  await call('POST', `/api/kitchens/${kid}/ledger/entries`, { type: 'EXPENSE', category: byName['食材采购'], amountFen: 5000, remark: '买菜' });
+  await call('POST', `/api/kitchens/${kid}/ledger/entries`, { type: 'EXPENSE', category: byName['水电燃气'], amountFen: 3000, remark: '燃气' });
+  await call('POST', `/api/kitchens/${kid}/ledger/entries`, { type: 'INCOME', category: byName['菜品销售'], amountFen: 12800, remark: '订单' });
+  const dishList = await call('GET', `/api/kitchens/${kid}/dishes?mode=order`);
+  const order = await call('POST', `/api/kitchens/${kid}/orders`, { items: [{ dishId: dishList.data[0].id, quantity: 2 }] });
+  await call('POST', `/api/orders/${order.data.id}/complete`);
+}, { token, kid, base: 'http://127.0.0.1:8080' });
+
+// 重新注入业务数据后的登录态
+await page.evaluate(([t]) => { localStorage.setItem('token', t); }, [token]);
 const sleep = (ms) => page.waitForTimeout(ms);
 
 // 1. 我的页（浅色）：宫格图标 + 无会员横幅 + 外观模式入口

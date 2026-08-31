@@ -138,8 +138,8 @@ function fmtTime(iso: string) {
         <button class="cart-btn" hover-class="press-sink" @tap="addToCart">加入购物车</button>
       </view>
 
-      <!-- 主账号/管理操作 -->
-      <view v-if="isOwnerView" class="ops">
+      <!-- 管理操作（主账号/成员均可编辑） -->
+      <view class="ops">
         <button class="op-btn primary" hover-class="press-sink" @tap="edit">编辑菜谱</button>
         <button class="op-btn" hover-class="press-dim" @tap="toggleShelf">
           {{ dish.status === 1 ? '下架' : '上架' }}

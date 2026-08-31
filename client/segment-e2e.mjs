@@ -4,18 +4,22 @@
  *      → 页面内完成本地分割+上传 → 校验上传结果图四角透明、中心不透明。
  */
 import { chromium } from 'playwright';
+import { chromium } from 'playwright';
+import { execSync } from 'child_process';
 
-const API = 'http://localhost:8080';
+const API = 'http://127.0.0.1:8080';
 const APP = 'http://localhost:5173';
 
-// 造登录态
-async function api(method, path, body, token) {
-  const res = await fetch(API + path, {
-    method,
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  return res.json();
+import { execSync } from 'child_process';
+
+/** Mihomo TUN 会吞 node 的出站 POST，改用 curl 子进程（curl 一直正常） */
+function api(method, path, body, token) {
+  const parts = ['curl -s', '-X', method, "-H 'Content-Type: application/json'"];
+  if (token) parts.push(`-H 'Authorization: Bearer ${token}'`);
+  if (body) parts.push(`-d '${JSON.stringify(body).replace(/'/g, `'\\''`)}'`);
+  parts.push(`'${API}${path}'`);
+  const out = execSync(parts.join(' '), { encoding: 'utf8', timeout: 15000, shell: '/bin/bash' });
+  return JSON.parse(out);
 }
 const phone = `136${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}`;
 const reg = await api('POST', '/api/auth/register', { phone, smsCode: '1234' });
