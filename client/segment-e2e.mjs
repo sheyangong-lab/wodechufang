@@ -5,7 +5,7 @@
  */
 import { chromium } from 'playwright';
 
-const API = 'http://192.168.1.111:8080';
+const API = 'http://localhost:8080';
 const APP = 'http://localhost:5173';
 
 // 造登录态

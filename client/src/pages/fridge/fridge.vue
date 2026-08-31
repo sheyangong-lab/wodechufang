@@ -4,6 +4,7 @@ import { fridgeApi, expiryText, UNIT_LABELS } from '@/api/fridge';
 import type { FridgeItemView, FridgeCategoryView, FridgeSummary } from '@/api/fridge';
 import { getCurrentKitchenId, loadKitchenCache } from '@/api/kitchen';
 import { fullUrl } from '@/api/dish';
+import type { FridgeItemView as FItem } from '@/api/fridge';
 import { pushUnreadNotices } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
@@ -153,6 +154,93 @@ function previewPhoto(url: string) {
 function tipMatch() {
   uni.showToast({ title: '点食材卡片上的「匹配菜谱」即可', icon: 'none' });
 }
+
+// ----- 左滑操作（像聊天列表左滑）：显示「改数量 / 删除」 -----
+const BTN_W = uni.upx2px(240);
+const openedId = ref<number | null>(null);
+const dragId = ref<number | null>(null);
+const dragDx = ref(0);
+let touchStartX = 0;
+let touchStartY = 0;
+let touchBaseX = 0;
+let dragging = false;
+let decided = false;
+
+function contentStyle(id: number) {
+  if (dragId.value === id) {
+    return { transform: `translateX(${dragDx.value}px)`, transition: 'none' };
+  }
+  if (openedId.value === id) {
+    return { transform: `translateX(${-BTN_W}px)` };
+  }
+  return { transform: 'translateX(0px)' };
+}
+
+function onTouchStart(e: TouchEvent, id: number) {
+  const t = e.touches[0];
+  touchStartX = t.clientX;
+  touchStartY = t.clientY;
+  touchBaseX = openedId.value === id ? -BTN_W : 0;
+  dragging = false;
+  decided = false;
+  dragId.value = null;
+}
+
+function onTouchMove(e: TouchEvent, id: number) {
+  const t = e.touches[0];
+  const dx = t.clientX - touchStartX;
+  const dy = t.clientY - touchStartY;
+  if (!decided) {
+    if (Math.abs(dx) < 8) return;
+    // 横向滑动才接管，纵向交给页面滚动
+    if (Math.abs(dx) > Math.abs(dy)) {
+      decided = true;
+      dragging = true;
+      dragId.value = id;
+    } else {
+      decided = true;
+    }
+  }
+  if (dragging) {
+    dragDx.value = Math.max(-BTN_W, Math.min(0, touchBaseX + dx));
+  }
+}
+
+function onTouchEnd(id: number) {
+  if (dragging && dragId.value === id) {
+    openedId.value = dragDx.value < -BTN_W / 2 ? id : null;
+  }
+  dragging = false;
+  dragId.value = null;
+}
+
+function onItemTap() {
+  if (openedId.value !== null) openedId.value = null;
+}
+
+function openQty(i: FItem) {
+  qtyTarget.value = i;
+  qtyDialogVisible.value = true;
+}
+
+const qtyDialogVisible = ref(false);
+const qtyTarget = ref<FItem | null>(null);
+
+function onQtySave(v: string) {
+  qtyDialogVisible.value = false;
+  if (!qtyTarget.value || !kitchenId.value) return;
+  fridgeApi.updateItem(kitchenId.value, qtyTarget.value.id, { quantity: v.trim() }).then(() => {
+    uni.showToast({ title: '数量已更新', icon: 'none' });
+    load();
+  });
+}
+
+function removeOne(i: FItem) {
+  fridgeApi.removeItem(kitchenId.value!, i.id).then(() => {
+    uni.showToast({ title: `已删除「${i.name}」`, icon: 'none' });
+    load();
+  });
+}
 </script>
 
 <template>
@@ -223,12 +311,21 @@ function tipMatch() {
             <image class="empty-img" src="/static/icons/basket.png" mode="aspectFit" />
             <text class="empty-tip">冰箱里空空的，放点食材吧</text>
           </view>
-          <view
-            v-for="i in items"
-            :key="i.id"
-            class="card item"
-            :class="{ warning: i.state === 'expiring', danger: i.state === 'expired' }"
-          >
+          <view v-for="i in items" :key="i.id" class="swipe-cell">
+            <view class="swipe-actions">
+              <text class="swipe-btn qty" hover-class="press-dim" @tap.stop="openQty(i)">改数量</text>
+              <text class="swipe-btn del" hover-class="press-dim" @tap.stop="removeOne(i)">删除</text>
+            </view>
+            <view
+              class="card item swipe-content"
+              :class="{ warning: i.state === 'expiring', danger: i.state === 'expired' }"
+              :style="contentStyle(i.id)"
+              @touchstart="onTouchStart($event, i.id)"
+              @touchmove="onTouchMove($event, i.id)"
+              @touchend="onTouchEnd(i.id)"
+              @touchcancel="onTouchEnd(i.id)"
+              @tap="onItemTap"
+            >
             <view class="item-main">
               <view class="item-head">
                 <text class="name">{{ i.name }}</text>
@@ -242,6 +339,7 @@ function tipMatch() {
               </view>
             </view>
             <image v-if="i.imageUrl" class="item-photo" :src="fullUrl(i.imageUrl)" mode="aspectFit" @tap.stop="previewPhoto(i.imageUrl)" />
+            </view>
           </view>
         </view>
       </view>
@@ -261,6 +359,15 @@ function tipMatch() {
       <text class="empty-tip">食材冰箱仅主账号和成员可见</text>
     </view>
 
+    <InputDialog
+      :visible="qtyDialogVisible"
+      title="修改数量"
+      :default-value="qtyTarget?.quantity"
+      placeholder="数量+单位，如：100g"
+      :maxlength="20"
+      @confirm="onQtySave"
+      @close="qtyDialogVisible = false"
+    />
     <InputDialog
       :visible="catDialogVisible"
       title="快速添加类别"
@@ -333,7 +440,19 @@ function tipMatch() {
 .empty-img { width: 150rpx; height: 150rpx; }
 .empty-tip { font-size: 26rpx; color: v-bind('theme.sub'); }
 
-.item { padding: 22rpx 26rpx; margin-bottom: 16rpx; border: 2rpx solid v-bind('theme.divider'); display: flex; gap: 20rpx; align-items: flex-start; }
+.swipe-cell { position: relative; margin-bottom: 16rpx; border-radius: 24rpx; overflow: hidden; }
+.swipe-actions {
+  position: absolute; top: 0; right: 0; bottom: 0;
+  display: flex; align-items: stretch; z-index: 1;
+}
+.swipe-btn {
+  width: 120rpx; display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 26rpx; font-weight: 600;
+}
+.swipe-btn.qty { background: v-bind('theme.primaryBtn'); }
+.swipe-btn.del { background: v-bind('theme.danger'); }
+.swipe-content { will-change: transform; }
+.item { padding: 22rpx 26rpx; border: 2rpx solid v-bind('theme.divider'); display: flex; gap: 20rpx; align-items: flex-start; }
 .item-main { flex: 1; min-width: 0; }
 .item-photo { width: 120rpx; height: 120rpx; border-radius: 14rpx; flex-shrink: 0; background: v-bind('theme.primaryLight'); }
 .item.warning { border-color: v-bind('theme.warning'); background: v-bind('theme.warningLight'); }

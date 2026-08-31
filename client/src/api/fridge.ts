@@ -87,6 +87,17 @@ export const fridgeApi = {
     if (opts.keyword) url += `&keyword=${encodeURIComponent(opts.keyword)}`;
     return request<FridgeItemView[]>({ url });
   },
+  updateItem: (kitchenId: number, itemId: number, data: {
+    name?: string; categoryId?: number | null; producedDate?: string | null;
+    shelfLifeValue?: number; shelfLifeUnit?: string; quantity?: string; remark?: string;
+  }) =>
+    request<FridgeItemView>({
+      url: `/api/kitchens/${kitchenId}/fridge/items/${itemId}`, method: 'PUT', data,
+    }),
+  removeItem: (kitchenId: number, itemId: number) =>
+    request<void>({
+      url: `/api/kitchens/${kitchenId}/fridge/items/${itemId}`, method: 'DELETE',
+    }),
   summary: (kitchenId: number) =>
     request<FridgeSummary>({ url: `/api/kitchens/${kitchenId}/fridge/summary` }),
   clear: (kitchenId: number, ids: number[]) =>

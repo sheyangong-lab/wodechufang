@@ -121,6 +121,59 @@ public class FridgeService {
         return views;
     }
 
+    /** 修改食材（名称/数量/类别/保质期等，按传入字段更新）。 */
+    @Transactional
+    public FridgeItemView updateItem(Long userId, Long kitchenId, Long itemId, ItemUpdateReq req) {
+        requireManager(kitchenId, userId);
+        FridgeItem item = itemRepository.findById(itemId)
+                .orElseThrow(() -> new BusinessException(404, "食材不存在"));
+        if (!item.getKitchenId().equals(kitchenId) || item.getDeleted() == 1) {
+            throw new BusinessException(404, "食材不存在");
+        }
+        if (req.name() != null && !req.name().isBlank()) {
+            if (req.name().trim().length() > 30) {
+                throw new BusinessException("食材名称最多30个字");
+            }
+            item.setName(req.name().trim());
+        }
+        if (req.categoryId() != null) {
+            item.setCategoryId(req.categoryId());
+        }
+        if (req.producedDate() != null) {
+            item.setProducedDate(validDate(req.producedDate()));
+        }
+        if (req.shelfLifeValue() != null) {
+            if (req.shelfLifeValue() < 1) {
+                throw new BusinessException("保质期至少 1 天");
+            }
+            item.setShelfLifeValue(req.shelfLifeValue());
+        }
+        if (req.shelfLifeUnit() != null) {
+            item.setShelfLifeUnit(validUnit(req.shelfLifeUnit()));
+        }
+        if (req.quantity() != null) {
+            item.setQuantity(req.quantity().trim());
+        }
+        if (req.remark() != null) {
+            item.setRemark(req.remark().trim());
+        }
+        itemRepository.save(item);
+        return toView(item);
+    }
+
+    /** 删除单个食材（软删，与清仓同口径）。 */
+    @Transactional
+    public void deleteItem(Long userId, Long kitchenId, Long itemId) {
+        requireManager(kitchenId, userId);
+        FridgeItem item = itemRepository.findById(itemId)
+                .orElseThrow(() -> new BusinessException(404, "食材不存在"));
+        if (!item.getKitchenId().equals(kitchenId)) {
+            throw new BusinessException(404, "食材不存在");
+        }
+        item.setDeleted(1);
+        itemRepository.save(item);
+    }
+
     /** 三态+分类+关键词筛选。state: all/fresh/expiring/expired */
     public List<FridgeItemView> listItems(Long userId, Long kitchenId, Long categoryId,
                                           String keyword, String state) {
@@ -340,6 +393,10 @@ public class FridgeService {
     public record ItemReq(String name, Long categoryId, String imageUrl, String producedDate,
                           Integer shelfLifeValue, String shelfLifeUnit,
                           String quantity, String remark) {}
+
+    public record ItemUpdateReq(String name, Long categoryId, String producedDate,
+                                Integer shelfLifeValue, String shelfLifeUnit,
+                                String quantity, String remark) {}
 
     public record FridgeItemView(Long id, Long kitchenId, Long categoryId, String name,
                                  String imageUrl, String producedDate, Integer shelfLifeValue,

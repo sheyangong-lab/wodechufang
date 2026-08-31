@@ -109,6 +109,14 @@ ATOK=$(echo "$LR" | python3 -c "import sys,json;print(json.load(sys.stdin)['data
 R=$(curl -s $BASE/api/kitchens/$KID/vip/redeem -X POST -H "$J" -H "$HA" -d '{"code":"X"}')
 check "VIP接口已下线(404)" "$R" '"code":404'
 
+FIID=$(curl -s "$BASE/api/kitchens/$KID/fridge/items?state=all" -H "$HA" | python3 -c "import sys,json;print(json.load(sys.stdin)['data'][0]['id'])")
+R=$(curl -s -X PUT $BASE/api/kitchens/$KID/fridge/items/$FIID -H "$J" -H "$HA" -d '{"quantity":"6个"}')
+check "左滑改数量(单条修改)" "$R" '"quantity":"6个"'
+R=$(curl -s -X DELETE $BASE/api/kitchens/$KID/fridge/items/$FIID -H "$HA")
+check "左滑删除单个食材" "$R" '"code":0'
+R=$(curl -s "$BASE/api/kitchens/$KID/fridge/items?state=all" -H "$HA")
+if echo "$R" | grep -Fq "\"id\":$FIID"; then bad "删除后列表不含该食材"; else ok "删除后列表不含该食材"; fi
+
 # 7.5 成员账号: 自定义名字/职称/全权限
 MEMBER_UID=$(curl -s $BASE/api/kitchens/$KID -H "$HA" | python3 -c "import sys,json;print([m['userId'] for m in json.load(sys.stdin)['data']['members'] if m['role']=='MEMBER'][0])")
 R=$(curl -s -X PUT $BASE/api/kitchens/$KID/members/$MEMBER_UID -H "$J" -H "$HA" -d '{"alias":"老王家的","title":"主厨","fullAccess":1}')

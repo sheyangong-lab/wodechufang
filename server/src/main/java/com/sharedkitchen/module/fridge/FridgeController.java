@@ -66,6 +66,28 @@ public class FridgeController {
         return ApiResponse.ok(fridgeService.createItems(userId(request), kitchenId, req.items()));
     }
 
+    public record ItemUpdateReq(String name, Long categoryId, String producedDate,
+                                Integer shelfLifeValue, String shelfLifeUnit,
+                                String quantity, String remark) {}
+
+    /** 修改单个食材（左滑改数量/删除）。 */
+    @org.springframework.web.bind.annotation.PutMapping("/items/{itemId}")
+    public ApiResponse<FridgeService.FridgeItemView> updateItem(
+            HttpServletRequest request, @PathVariable Long kitchenId, @PathVariable Long itemId,
+            @RequestBody ItemUpdateReq req) {
+        return ApiResponse.ok(fridgeService.updateItem(userId(request), kitchenId, itemId,
+                new FridgeService.ItemUpdateReq(req.name(), req.categoryId(), req.producedDate(),
+                        req.shelfLifeValue(), req.shelfLifeUnit(), req.quantity(), req.remark())));
+    }
+
+    /** 删除单个食材（软删）。 */
+    @org.springframework.web.bind.annotation.DeleteMapping("/items/{itemId}")
+    public ApiResponse<Void> deleteItem(
+            HttpServletRequest request, @PathVariable Long kitchenId, @PathVariable Long itemId) {
+        fridgeService.deleteItem(userId(request), kitchenId, itemId);
+        return ApiResponse.ok();
+    }
+
     @GetMapping("/items")
     public ApiResponse<List<FridgeService.FridgeItemView>> list(
             HttpServletRequest request, @PathVariable Long kitchenId,
