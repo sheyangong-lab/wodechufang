@@ -10,6 +10,7 @@ import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import ActionSheet from '@/components/action-sheet.vue';
 import type { SheetItem } from '@/components/action-sheet.vue';
+import CustomTabbar from '@/components/custom-tabbar.vue';
 
 const cart = useCartStore();
 
@@ -383,7 +384,10 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
 <style lang="scss" scoped>
 .page {
   display: flex; flex-direction: column;
-  height: 100vh; overflow: hidden;
+  /* WebView 的 vh 计算不稳（部分机型 100vh > 可视区导致顶部裁切/底栏溢出），
+     App.vue 启动时 JS 写入实际屏幕 px */
+  height: var(--sk-vh, 100vh);
+  overflow: hidden;
 }
 .page-scroll {
   flex: 1; overflow-y: auto;

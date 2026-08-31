@@ -7,6 +7,7 @@ import { getApiBase } from '@/api/config';
 import { onShow } from '@dcloudio/uni-app';
 import { computed, nextTick, ref, watch } from 'vue';
 import CalendarPicker from '@/components/calendar-picker.vue';
+import CustomTabbar from '@/components/custom-tabbar.vue';
 import { monthStr } from '@/utils/fmt';
 
 const kitchenId = ref<number | null>(getCurrentKitchenId());
@@ -382,7 +383,10 @@ function delEntry(e: LedgerEntryView) {
 <style lang="scss" scoped>
 .page {
   display: flex; flex-direction: column;
-  height: 100vh; overflow: hidden;
+  /* WebView 的 vh 计算不稳（部分机型 100vh > 可视区导致顶部裁切/底栏溢出），
+     App.vue 启动时 JS 写入实际屏幕 px */
+  height: var(--sk-vh, 100vh);
+  overflow: hidden;
 }
 .page-scroll {
   flex: 1; overflow-y: auto;

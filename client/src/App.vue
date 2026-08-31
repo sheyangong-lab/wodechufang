@@ -7,7 +7,28 @@ import { flushQueue, queueSize } from "@/utils/offline";
 onLaunch(() => {
   initTheme();
   setupAndroidBackButton();
+  syncViewportHeight();
 });
+
+/**
+ * WebView 的 vh/百分比高度链在部分真机上计算偏大（100vh > 实际可视区），
+ * 导致满屏 flex 布局顶部被裁、底栏被挤出屏幕。改为 JS 显式测量
+ * documentElement 可视高度写入 --sk-vh，resize/软键盘时同步。
+ */
+function syncViewportHeight() {
+  // #ifdef H5
+  const apply = () => {
+    const h = window.visualViewport ? window.visualViewport.height
+      : document.documentElement.clientHeight;
+    document.documentElement.style.setProperty('--sk-vh', h + 'px');
+  };
+  apply();
+  window.addEventListener('resize', apply);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', apply);
+  }
+  // #endif
+}
 
 onShow(() => {
   // 联网后自动回放离线期间的待同步操作（有队列才触发）
