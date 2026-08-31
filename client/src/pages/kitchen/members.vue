@@ -3,6 +3,7 @@ import { theme } from '@/styles/theme';
 import { kitchenApi, ROLE_LABELS } from '@/api/kitchen';
 import type { KitchenDetail, MemberView } from '@/api/kitchen';
 import { loadUser } from '@/api/auth';
+import { fmtDateTime } from '@/utils/fmt';
 import { onLoad } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import InputDialog from '@/components/input-dialog.vue';
@@ -38,7 +39,7 @@ function displayTitle(m: MemberView) {
 }
 
 function fmtTime(iso: string) {
-  return iso.length >= 16 ? iso.slice(0, 16).replace('T', ' ') : iso;
+  return fmtDateTime(iso);
 }
 
 // ----- 编辑（名字/职称；主账号可设全权限）-----

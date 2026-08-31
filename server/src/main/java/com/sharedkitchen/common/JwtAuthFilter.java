@@ -24,7 +24,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             "/api/health",
             "/api/auth/sms-code",
             "/api/auth/register",
-            "/api/auth/login"
+            "/api/auth/login",
+            "/api/app/version",
+            "/api/health"
     );
 
     private final JwtService jwtService;

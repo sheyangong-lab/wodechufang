@@ -124,6 +124,11 @@ export const dishApi = {
     request<CategoryView>({ url: `/api/kitchens/${kitchenId}/categories`, method: 'POST', data: { name } }),
   deleteCategory: (kitchenId: number, categoryId: number) =>
     request<void>({ url: `/api/kitchens/${kitchenId}/categories/${categoryId}`, method: 'DELETE' }),
+  /** 分类排序：ids 顺序即显示顺序 */
+  reorderCategories: (kitchenId: number, ids: number[]) =>
+    request<void>({
+      url: `/api/kitchens/${kitchenId}/categories/order`, method: 'PUT', data: { ids },
+    }),
 
   create: (kitchenId: number, data: DishPayload) =>
     request<DishView>({ url: `/api/kitchens/${kitchenId}/dishes`, method: 'POST', data }),

@@ -53,6 +53,65 @@ function onPickMode(key: string) {
   uni.showToast({ title: `外观：${MODE_LABELS[key as ThemeMode]}`, icon: 'none' });
 }
 
+// ---------- 检查更新 ----------
+// eslint-disable-next-line
+const AppBridge = (): any => (globalThis as Record<string, any>).Capacitor?.Plugins?.AppBridge;
+const updating = ref(false);
+
+async function checkUpdate() {
+  if (updating.value) return;
+  updating.value = true;
+  try {
+    const res = await fetch(getApiBase().replace(/\/+$/, '') + '/api/app/version');
+    const body = await res.json();
+    if (body.code !== 0) throw new Error(body.message || '检查失败');
+    const meta = body.data as {
+      hasUpdate: boolean; versionCode?: number; versionName?: string;
+      notes?: string; url?: string;
+    };
+    const bridge = AppBridge();
+    let localCode = 0;
+    let localName = '未知';
+    if (bridge && (globalThis as Record<string, any>).Capacitor?.isNativePlatform?.()) {
+      const local = await bridge.checkLocal();
+      localCode = Number(local.versionCode) || 0;
+      localName = String(local.versionName);
+    }
+    if (!meta.hasUpdate) {
+      uni.showToast({ title: '服务器暂无更新包', icon: 'none' });
+      return;
+    }
+    if (localCode > 0 && meta.versionCode && meta.versionCode <= localCode) {
+      uni.showToast({ title: `已是最新版本 ${localName}`, icon: 'none' });
+      return;
+    }
+    uni.showModal({
+      title: `发现新版本 ${meta.versionName || ''}`,
+      content: (meta.notes || '功能与问题修复') + '\n是否下载安装？',
+      confirmText: '立即更新',
+      success: (r) => {
+        if (!r.confirm || !bridge || !meta.url) return;
+        uni.showLoading({ title: '下载中 0%', mask: true });
+        bridge.addListener('progress', (p: { percent: number }) => {
+          uni.showLoading({ title: `下载中 ${p.percent}%`, mask: true });
+        });
+        bridge
+          .downloadApk({ url: getApiBase() + meta.url })
+          .then((d: { path: string }) => bridge.installApk({ path: d.path }))
+          .then(() => uni.hideLoading())
+          .catch((e: Error) => {
+            uni.hideLoading();
+            uni.showToast({ title: e.message?.slice(0, 40) || '更新失败', icon: 'none' });
+          });
+      },
+    });
+  } catch (e) {
+    uni.showToast({ title: (e as Error).message?.slice(0, 40) || '检查更新失败', icon: 'none' });
+  } finally {
+    updating.value = false;
+  }
+}
+
 function goSync() {
   uni.navigateTo({ url: '/pages/sync/sync' });
 }
@@ -155,6 +214,13 @@ function onLogout() {
 
     <!-- 设置 -->
     <view class="card notice-wrap">
+      <view class="notice-row" hover-class="press-bg" @tap="checkUpdate">
+        <view class="row-with-icon">
+          <image class="row-icon" src="/static/icons/grid-chart.png" mode="aspectFit" />
+          <text class="notice">检查更新</text>
+        </view>
+        <text class="mode-value">{{ updating ? '检查中…' : '新版本自动提醒 ›' }}</text>
+      </view>
       <view class="notice-row" hover-class="press-bg" @tap="modeSheetVisible = true">
         <view class="row-with-icon">
           <image class="row-icon" src="/static/icons/grid-moon.png" mode="aspectFit" />

@@ -130,9 +130,27 @@ public class DishService {
         Category c = new Category();
         c.setKitchenId(kitchenId);
         c.setName(trimmed);
+        // 新分类排到已有分类末尾
+        c.setSort(categoryRepository.findByKitchenIdOrderBySortAscIdAsc(kitchenId).size());
         c.setCreatedAt(now());
         categoryRepository.save(c);
         return new CategoryView(c.getId(), c.getName(), 0);
+    }
+
+    /** 按传入 id 顺序重排分类（ids[0] 显示在最上）。 */
+    @Transactional
+    public void reorderCategories(Long userId, Long kitchenId, List<Long> ids) {
+        requireOwner(kitchenId, userId);
+        int index = 0;
+        for (Long id : ids) {
+            Category c = categoryRepository.findById(id)
+                    .orElseThrow(() -> new BusinessException(404, "分类不存在"));
+            if (!c.getKitchenId().equals(kitchenId)) {
+                throw new BusinessException(403, "无权操作该分类");
+            }
+            c.setSort(index++);
+            categoryRepository.save(c);
+        }
     }
 
     public List<CategoryView> listCategories(Long userId, Long kitchenId) {

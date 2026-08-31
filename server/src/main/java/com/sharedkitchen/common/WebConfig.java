@@ -22,6 +22,8 @@ public class WebConfig implements WebMvcConfigurer {
     public void addResourceHandlers(org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry registry) {
         registry.addResourceHandler("/files/exports/**")
                 .addResourceLocations("file:./data/exports/");
+        registry.addResourceHandler("/files/apk/**")
+                .addResourceLocations("file:./data/apk/");
         registry.addResourceHandler("/files/**")
                 .addResourceLocations("file:./data/uploads/");
     }

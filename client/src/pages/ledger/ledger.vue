@@ -7,9 +7,10 @@ import { getApiBase } from '@/api/config';
 import { onShow } from '@dcloudio/uni-app';
 import { computed, nextTick, ref, watch } from 'vue';
 import CalendarPicker from '@/components/calendar-picker.vue';
+import { monthStr } from '@/utils/fmt';
 
 const kitchenId = ref<number | null>(getCurrentKitchenId());
-const month = ref(new Date().toISOString().slice(0, 7));
+const month = ref(monthStr());
 const summary = ref<MonthSummary>({ income: 0, refund: 0, expense: 0, balance: 0, days: [] });
 const entries = ref<LedgerEntryView[]>([]);
 const stats = ref<DishStat[]>([]);
@@ -81,7 +82,7 @@ const pieGradient = computed(() => {
 const trend = computed(() => {
   const [y, m] = month.value.split('-').map(Number);
   const now = new Date();
-  const isCurrentMonth = month.value === now.toISOString().slice(0, 7);
+  const isCurrentMonth = month.value === monthStr(now);
   const endDate = isCurrentMonth ? new Date() : new Date(y, m, 0); // 非当前月取该月最后一天
   const byDay = new Map<string, number>();
   entries.value

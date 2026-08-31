@@ -50,6 +50,17 @@ public class FridgeController {
         return ApiResponse.ok(fridgeService.createCategory(userId(request), kitchenId, req.name()));
     }
 
+    public record CategoryOrderReq(java.util.List<Long> ids) {}
+
+    /** 类别排序：ids 顺序即显示顺序。 */
+    @org.springframework.web.bind.annotation.PutMapping("/categories/order")
+    public ApiResponse<Void> reorderCategories(
+            HttpServletRequest request, @PathVariable Long kitchenId,
+            @RequestBody CategoryOrderReq req) {
+        fridgeService.reorderCategories(userId(request), kitchenId, req.ids());
+        return ApiResponse.ok();
+    }
+
     @DeleteMapping("/categories/{categoryId}")
     public ApiResponse<Void> deleteCategory(
             HttpServletRequest request, @PathVariable Long kitchenId, @PathVariable Long categoryId) {

@@ -61,9 +61,26 @@ public class FridgeService {
         FridgeCategory c = new FridgeCategory();
         c.setKitchenId(kitchenId);
         c.setName(trimmed);
+        c.setSort(categoryRepository.findByKitchenIdOrderBySortAscIdAsc(kitchenId).size());
         c.setCreatedAt(now());
         categoryRepository.save(c);
         return new FridgeCategoryView(c.getId(), c.getName());
+    }
+
+    /** 按传入 id 顺序重排类别。 */
+    @Transactional
+    public void reorderCategories(Long userId, Long kitchenId, List<Long> ids) {
+        requireManager(kitchenId, userId);
+        int index = 0;
+        for (Long id : ids) {
+            FridgeCategory c = categoryRepository.findById(id)
+                    .orElseThrow(() -> new BusinessException(404, "类别不存在"));
+            if (!c.getKitchenId().equals(kitchenId)) {
+                throw new BusinessException(403, "无权操作该类别");
+            }
+            c.setSort(index++);
+            categoryRepository.save(c);
+        }
     }
 
     @Transactional

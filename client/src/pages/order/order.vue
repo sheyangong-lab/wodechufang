@@ -82,7 +82,12 @@ function summary(o: OrderView) {
 }
 
 function fmtTime(iso: string) {
-  return iso.length >= 16 ? iso.slice(11, 16) : iso;
+  // 订单列表只展示时:分，转本地时区
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 // ----- 状态操作 -----

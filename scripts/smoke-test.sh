@@ -131,6 +131,18 @@ check "收回全权限后成员改厨房信息应403" "$R" '"code":403'
 R=$(curl -s -X PUT $BASE/api/kitchens/$KID/members/$MEMBER_UID -H "$J" -H "$HB" -d '{"alias":"自己改名"}')
 check "成员可改自己的名字" "$R" '"alias":"自己改名"'
 
+# 7.8 分类排序（菜谱分类 + 冰箱类别）
+C2=$(curl -s -X POST $BASE/api/kitchens/$KID/categories -H "$J" -H "$HA" -d '{"name":"素菜"}')
+CID2=$(echo "$C2" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['id'])")
+R=$(curl -s -X PUT $BASE/api/kitchens/$KID/categories/order -H "$J" -H "$HA" -d '{"ids":["'"$CID2"'","'"$CID"'"]}')
+check "菜谱分类重排" "$R" '"code":0'
+R=$(curl -s $BASE/api/kitchens/$KID/categories -H "$HA" | python3 -c "import sys,json;d=json.load(sys.stdin)['data'];print(d[0]['name'])")
+check "重排后素菜在最前" "$R" "素菜"
+R=$(curl -s -X POST $BASE/api/kitchens/$KID/fridge/categories -H "$J" -H "$HA" -d '{"name":"冷冻"}')
+FCID=$(echo "$R" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['id'])")
+R=$(curl -s -X PUT $BASE/api/kitchens/$KID/fridge/categories/order -H "$J" -H "$HA" -d '{"ids":["'"$FCID"'"]}')
+check "冰箱类别重排" "$R" '"code":0'
+
 # 7.9 设备直连同步: 操作幂等(X-Op-Id去重)
 OPID="smoke-$(date +%s)"
 R1=$(curl -s -X POST $BASE/api/kitchens/$KID/ledger/entries -H "$J" -H "$HA" -H "X-Op-Id: $OPID" -d '{"type":"EXPENSE","category":"食材采购","amountFen":777,"date":"'"$(date +%Y-%m-%d)"'"}')

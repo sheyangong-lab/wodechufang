@@ -4,6 +4,7 @@ import { ledgerApi, groupCategories } from '@/api/ledger';
 import type { LedgerCategoryView } from '@/api/ledger';
 import { yuanToFen } from '@/api/dish';
 import { ensureKitchenId, getCurrentKitchenId } from '@/api/kitchen';
+import { todayStr } from '@/utils/fmt';
 import { onLoad } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import ActionSheet from '@/components/action-sheet.vue';
@@ -14,7 +15,7 @@ const kitchenId = ref<number | null>(getCurrentKitchenId());
 const type = ref<'EXPENSE' | 'INCOME'>('EXPENSE');
 const category = ref('');
 const amountYuan = ref('');
-const date = ref(new Date().toISOString().slice(0, 10));
+const date = ref(todayStr());
 const remark = ref('');
 const groups = ref<{ expense: LedgerCategoryView[]; income: LedgerCategoryView[] }>({
   expense: [],

@@ -3,6 +3,7 @@ import { theme } from '@/styles/theme';
 import { fridgeApi } from '@/api/fridge';
 import type { NotificationView } from '@/api/fridge';
 import { ensureKitchenId, getCurrentKitchenId } from '@/api/kitchen';
+import { fmtDateTime } from '@/utils/fmt';
 import { onShow } from '@dcloudio/uni-app';
 import { ref } from 'vue';
 
@@ -30,7 +31,7 @@ function tap(n: NotificationView) {
 }
 
 function fmtTime(iso: string) {
-  return iso ? iso.slice(0, 16).replace('T', ' ') : '';
+  return fmtDateTime(iso);
 }
 </script>
 

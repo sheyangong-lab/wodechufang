@@ -5,6 +5,7 @@ import type { DishView, DishSpec } from '@/api/dish';
 import { useCartStore } from '@/stores/cart';
 import { onLoad } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
+import { fmtDate } from '@/utils/fmt';
 
 const cart = useCartStore();
 const dish = ref<DishView | null>(null);
@@ -76,7 +77,7 @@ function remove() {
 }
 
 function fmtTime(iso: string) {
-  return iso ? iso.slice(0, 10) : '';
+  return fmtDate(iso);
 }
 </script>
 

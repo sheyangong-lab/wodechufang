@@ -70,6 +70,11 @@ export const fridgeApi = {
     request<void>({
       url: `/api/kitchens/${kitchenId}/fridge/categories/${categoryId}`, method: 'DELETE',
     }),
+  /** 类别排序：ids 顺序即显示顺序 */
+  reorderCategories: (kitchenId: number, ids: number[]) =>
+    request<void>({
+      url: `/api/kitchens/${kitchenId}/fridge/categories/order`, method: 'PUT', data: { ids },
+    }),
 
   createItems: (
     kitchenId: number,

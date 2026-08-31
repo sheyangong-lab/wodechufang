@@ -22,6 +22,22 @@ async function load() {
   }
 }
 
+/** 上移/下移分类，乐观更新 + 服务端持久化 */
+async function move(index: number, dir: -1 | 1) {
+  const target = index + dir;
+  if (target < 0 || target >= categories.value.length) return;
+  const arr = categories.value.slice();
+  const tmp = arr[index];
+  arr[index] = arr[target];
+  arr[target] = tmp;
+  categories.value = arr;
+  try {
+    await dishApi.reorderCategories(kitchenId.value!, arr.map((c) => c.id));
+  } catch {
+    load();
+  }
+}
+
 function onAdd(name: string) {
   addDialogVisible.value = false;
   dishApi.createCategory(kitchenId.value!, name).then(load);
@@ -46,14 +62,18 @@ function remove(c: CategoryView) {
       <view v-if="categories.length === 0" class="empty">
         <text class="empty-tip">还没有分类，添加一个开始建菜单吧</text>
       </view>
-      <view v-for="c in categories" :key="c.id" class="cat-row">
+      <view v-for="(c, index) in categories" :key="c.id" class="cat-row">
         <text class="name">{{ c.name }}</text>
         <text class="count">{{ c.dishCount }}道菜</text>
+        <view class="order-btns">
+          <text class="order-btn" :class="{ dim: index === 0 }" hover-class="press-dim" @tap="move(index, -1)">↑</text>
+          <text class="order-btn" :class="{ dim: index === categories.length - 1 }" hover-class="press-dim" @tap="move(index, 1)">↓</text>
+        </view>
         <text class="del" hover-class="press-dim" @tap="remove(c)">删除</text>
       </view>
     </view>
     <button class="btn-add" hover-class="press-sink" @tap="addDialogVisible = true">＋ 添加分类</button>
-    <text class="hint">免费版最多 5 个分类，升级厨房扩容到 50 个</text>
+    <text class="hint">用 ↑↓ 调整分类在点单页的显示顺序</text>
 
     <InputDialog
       :visible="addDialogVisible"
@@ -88,7 +108,14 @@ function remove(c: CategoryView) {
 }
 .name { flex: 1; font-size: 30rpx; color: v-bind('theme.title'); font-weight: 500; }
 .count { font-size: 24rpx; color: v-bind('theme.sub'); margin-right: 24rpx; }
-.del { font-size: 26rpx; color: v-bind('theme.danger'); }
+.order-btns { display: flex; gap: 10rpx; }
+.order-btn {
+  width: 56rpx; height: 56rpx; border-radius: 12rpx;
+  background: v-bind('theme.chipBg'); color: v-bind('theme.title');
+  font-size: 28rpx; text-align: center; line-height: 56rpx;
+}
+.order-btn.dim { opacity: 0.3; }
+.del { font-size: 26rpx; color: v-bind('theme.danger'); margin-left: 8rpx; }
 
 .btn-add {
   margin-top: 32rpx;

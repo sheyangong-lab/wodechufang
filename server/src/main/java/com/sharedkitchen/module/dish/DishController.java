@@ -48,6 +48,17 @@ public class DishController {
         return ApiResponse.ok(dishService.createCategory(userId(request), kitchenId, req.name()));
     }
 
+    public record CategoryOrderReq(java.util.List<Long> ids) {}
+
+    /** 分类排序：ids 顺序即显示顺序。 */
+    @org.springframework.web.bind.annotation.PutMapping("/kitchens/{kitchenId}/categories/order")
+    public ApiResponse<Void> reorderCategories(
+            HttpServletRequest request, @PathVariable Long kitchenId,
+            @RequestBody CategoryOrderReq req) {
+        dishService.reorderCategories(userId(request), kitchenId, req.ids());
+        return ApiResponse.ok();
+    }
+
     @DeleteMapping("/kitchens/{kitchenId}/categories/{categoryId}")
     public ApiResponse<Void> deleteCategory(
             HttpServletRequest request, @PathVariable Long kitchenId, @PathVariable Long categoryId) {
