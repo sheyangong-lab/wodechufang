@@ -131,6 +131,15 @@ check "收回全权限后成员改厨房信息应403" "$R" '"code":403'
 R=$(curl -s -X PUT $BASE/api/kitchens/$KID/members/$MEMBER_UID -H "$J" -H "$HB" -d '{"alias":"自己改名"}')
 check "成员可改自己的名字" "$R" '"alias":"自己改名"'
 
+# 7.9 设备直连同步: 操作幂等(X-Op-Id去重)
+OPID="smoke-$(date +%s)"
+R1=$(curl -s -X POST $BASE/api/kitchens/$KID/ledger/entries -H "$J" -H "$HA" -H "X-Op-Id: $OPID" -d '{"type":"EXPENSE","category":"食材采购","amountFen":777,"date":"'"$(date +%Y-%m-%d)"'"}')
+R2=$(curl -s -X POST $BASE/api/kitchens/$KID/ledger/entries -H "$J" -H "$HA" -H "X-Op-Id: $OPID" -d '{"type":"EXPENSE","category":"食材采购","amountFen":777,"date":"'"$(date +%Y-%m-%d)"'"}')
+check "幂等首次写入" "$R1" '"amountFen":777'
+if [ "$R1" = "$R2" ]; then ok "幂等重放返回相同响应"; else bad "幂等重放响应不一致"; fi
+CNT=$(curl -s "$BASE/api/kitchens/$KID/ledger/entries?month=$(date +%Y-%m)" -H "$HA" | grep -o '"amountFen":777' | wc -l)
+[ "$CNT" = "1" ] && ok "重放未产生重复流水" || bad "重放重复写入($CNT条)"
+
 # 8. 后台: 概览/封禁解封
 R=$(curl -s $BASE/api/admin/overview -H "Authorization: Bearer $ATOK")
 check "后台概览" "$R" '"users":'

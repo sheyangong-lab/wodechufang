@@ -2,6 +2,7 @@
 import { onLaunch, onShow, onHide } from "@dcloudio/uni-app";
 import { initTheme } from "@/styles/theme";
 import { App as CapApp } from "@capacitor/app";
+import { flushQueue, queueSize } from "@/utils/offline";
 
 onLaunch(() => {
   initTheme();
@@ -9,7 +10,16 @@ onLaunch(() => {
 });
 
 onShow(() => {
-  console.log("App Show");
+  // 联网后自动回放离线期间的待同步操作（有队列才触发）
+  if (queueSize() > 0) {
+    setTimeout(() => {
+      flushQueue().then(({ done }) => {
+        if (done > 0) {
+          uni.showToast({ title: `已同步离线操作 ${done} 条`, icon: "none" });
+        }
+      });
+    }, 2500);
+  }
 });
 onHide(() => {
   console.log("App Hide");

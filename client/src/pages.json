@@ -61,6 +61,10 @@
       "style": { "navigationBarTitleText": "记一笔", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
     },
     {
+      "path": "pages/sync/sync",
+      "style": { "navigationBarTitleText": "设备直连同步", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
+    },
+    {
       "path": "pages/ledger/categories",
       "style": { "navigationBarTitleText": "账本分类管理", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
     },

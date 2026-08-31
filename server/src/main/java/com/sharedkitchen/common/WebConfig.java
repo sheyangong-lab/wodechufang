@@ -54,6 +54,16 @@ public class WebConfig implements WebMvcConfigurer {
         return registration;
     }
 
+    /** 设备直连同步的幂等去重（X-Op-Id），在 CORS 之后、JWT 之前包裹全链路。 */
+    @Bean
+    public FilterRegistrationBean<OpIdempotencyFilter> opIdempotencyFilter(SyncOpRepository repo) {
+        FilterRegistrationBean<OpIdempotencyFilter> registration =
+                new FilterRegistrationBean<>(new OpIdempotencyFilter(repo));
+        registration.addUrlPatterns("/api/*");
+        registration.setOrder(2);
+        return registration;
+    }
+
     /** 后台鉴权：先于 JwtAuthFilter，管理 /api/admin/**（登录除外）。 */
     @Bean
     public FilterRegistrationBean<com.sharedkitchen.module.admin.AdminAuthFilter> adminAuthFilter() {

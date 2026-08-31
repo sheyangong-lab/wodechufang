@@ -236,9 +236,18 @@ function onQtySave(v: string) {
 }
 
 function removeOne(i: FItem) {
-  fridgeApi.removeItem(kitchenId.value!, i.id).then(() => {
-    uni.showToast({ title: `已删除「${i.name}」`, icon: 'none' });
-    load();
+  uni.showModal({
+    title: '删除食材',
+    content: `确定删除「${i.name}」？`,
+    confirmText: '删除',
+    confirmColor: '#E05B4E',
+    success: (res) => {
+      if (!res.confirm) return;
+      fridgeApi.removeItem(kitchenId.value!, i.id).then(() => {
+        uni.showToast({ title: `已删除「${i.name}」`, icon: 'none' });
+        load();
+      });
+    },
   });
 }
 </script>
@@ -451,7 +460,10 @@ function removeOne(i: FItem) {
 }
 .swipe-btn.qty { background: v-bind('theme.primaryBtn'); }
 .swipe-btn.del { background: v-bind('theme.danger'); }
-.swipe-content { will-change: transform; }
+.swipe-content {
+  position: relative; z-index: 2;   /* 内容层压住按钮层，滑开才露出 */
+  will-change: transform;
+}
 .item { padding: 22rpx 26rpx; border: 2rpx solid v-bind('theme.divider'); display: flex; gap: 20rpx; align-items: flex-start; }
 .item-main { flex: 1; min-width: 0; }
 .item-photo { width: 120rpx; height: 120rpx; border-radius: 14rpx; flex-shrink: 0; background: v-bind('theme.primaryLight'); }

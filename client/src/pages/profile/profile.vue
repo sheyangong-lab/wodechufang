@@ -53,6 +53,10 @@ function onPickMode(key: string) {
   uni.showToast({ title: `外观：${MODE_LABELS[key as ThemeMode]}`, icon: 'none' });
 }
 
+function goSync() {
+  uni.navigateTo({ url: '/pages/sync/sync' });
+}
+
 function goLogin() {
   uni.navigateTo({ url: '/pages/login/login' });
 }
@@ -157,6 +161,13 @@ function onLogout() {
           <text class="notice">外观模式</text>
         </view>
         <text class="mode-value">{{ MODE_LABELS[currentMode] }} ›</text>
+      </view>
+      <view class="notice-row" hover-class="press-bg" @tap="goSync">
+        <view class="row-with-icon">
+          <image class="row-icon" src="/static/icons/grid-dots.png" mode="aspectFit" />
+          <text class="notice">设备直连同步</text>
+        </view>
+        <text class="mode-value">附近设备 · 免服务器 ›</text>
       </view>
       <view class="notice-row" hover-class="press-bg" @tap="openServerSetting">
         <view class="row-with-icon">
