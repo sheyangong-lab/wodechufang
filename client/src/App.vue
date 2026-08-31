@@ -119,5 +119,12 @@ body {
   content: none !important;
   display: none !important;
 }
+/* uni-app h5 的导航栏(uni-page-head)是 fixed 悬浮层(0..44px, z-index 998)，
+   框架不会给内容让位(--window-top 变量定义了但无 CSS 消费)——
+   页面首行内容会压在导航栏底下被遮。全局给 body 下移让位，
+   6 个 tab 页的 .page 高度已同步减去 var(--window-top)。 */
+uni-page-body {
+  padding-top: var(--window-top, 0px) !important;
+}
 /* #endif */
 </style>

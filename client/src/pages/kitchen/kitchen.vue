@@ -386,7 +386,7 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
   display: flex; flex-direction: column;
   /* WebView 的 vh 计算不稳（部分机型 100vh > 可视区导致顶部裁切/底栏溢出），
      App.vue 启动时 JS 写入实际屏幕 px */
-  height: var(--sk-vh, 100vh);
+  height: calc(var(--sk-vh, 100vh) - var(--window-top, 0px)); /* 减去fixed导航栏高度，配合uni-page-body的padding-top让位 */
   overflow: hidden;
 }
 .page-scroll {
