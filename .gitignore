@@ -19,3 +19,8 @@ server/data/
 *.iml
 .DS_Store
 *.zip
+
+# 上传GitHub前清理：根目录截图/测试产物/本地数据
+/Screenshot_*.png
+test-results/
+/data/

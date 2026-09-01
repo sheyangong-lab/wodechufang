@@ -57,3 +57,10 @@ cd client && node e2e-selftest.mjs              # 浏览器自测(需先起后�
 - 安卓端行为：Capacitor 插件 `@capacitor/app`（返回键：栈内返回/末栈退出）、`@capacitor/local-notifications`（临期提醒进系统通知栏）、`@capacitor/status-bar`（状态栏跟随主题）——**插件大版本必须与 `@capacitor/core` 一致（当前 6.x）**
 - 每个后端改动后必跑 smoke-test；客户端改动后 `npm run build:h5` + `npx vue-tsc --noEmit` 必须过
 - 测试账号：店长 `13800002222` / 家人 `13900003333`，验证码万能码 `1234`
+
+## 开源协议
+
+[AGPL-3.0](./LICENSE)
+
+- 你可以自由使用、修改、部署本项目（包括自建服务端），但**基于本项目修改后对外提供网络服务或分发衍生作品时，必须以 AGPL-3.0 开源你的修改**；
+- 版权人（本项目作者）不受本协议约束，保留商业化（托管服务、广告、赞助等）的全部权利。
