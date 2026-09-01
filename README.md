@@ -64,3 +64,7 @@ cd client && node e2e-selftest.mjs              # 浏览器自测(需先起后�
 
 - 你可以自由使用、修改、部署本项目（包括自建服务端），但**基于本项目修改后对外提供网络服务或分发衍生作品时，必须以 AGPL-3.0 开源你的修改**；
 - 版权人（本项目作者）不受本协议约束，保留商业化（托管服务、广告、赞助等）的全部权利。
+
+### 内置 AI 模型说明
+
+App 的「拍照/选图自动去背景」功能内置 [U-2-Net](https://github.com/xuebinqin/U-2-Net) 轻量版模型（`u2netp.onnx`，4.4MB，Apache-2.0），经 onnxruntime-web 在设备本地推理，**不上传任何图片到网络**。第三方资产详见 [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md)。
