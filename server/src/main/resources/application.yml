@@ -3,6 +3,9 @@ spring:
     name: shared-kitchen-server
   profiles:
     default: dev
+  # 启动时加载 server/.env（properties 格式，如 GLM_API_KEY=xxx），系统环境变量优先级更高
+  config:
+    import: optional:file:.env[.properties]
   flyway:
     locations: classpath:db/migration/{vendor}
   servlet:
@@ -20,6 +23,13 @@ jwt:
   # 生产环境必须通过环境变量 JWT_SECRET 覆盖
   secret: ${JWT_SECRET:dev-only-secret-key-change-me-32bytes-minimum!!}
   ttl-hours: 72
+
+glm:
+  # 账本 AI 识别（智谱开放平台 https://open.bigmodel.cn），Key 通过环境变量注入，未配置时识别接口报提示错误
+  api-key: ${GLM_API_KEY:}
+  model: ${GLM_MODEL:glm-4.6v}
+  base-url: ${GLM_BASE_URL:https://open.bigmodel.cn/api/coding/paas/v4}
+  timeout-ms: 60000
 
 ---
 spring:

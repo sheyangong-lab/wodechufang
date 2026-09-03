@@ -2,6 +2,11 @@ import { request } from '@/utils/request';
 
 export type LedgerType = 'INCOME' | 'EXPENSE' | 'REFUND';
 
+export interface LedgerSubItem {
+  name: string;
+  amountFen: number;
+}
+
 export interface LedgerEntryView {
   id: number;
   type: LedgerType;
@@ -11,6 +16,8 @@ export interface LedgerEntryView {
   amountFen: number;
   date: string;
   remark: string;
+  /** 分费用明细（总费用=amountFen，由分费用求和）；无分项时为 null */
+  subItems: LedgerSubItem[] | null;
   createdAt: string;
 }
 
@@ -41,7 +48,14 @@ export const ledgerApi = {
     }),
   add: (
     kitchenId: number,
-    data: { type: 'INCOME' | 'EXPENSE'; category: string; amountFen: number; date?: string; remark?: string }
+    data: {
+      type: 'INCOME' | 'EXPENSE';
+      category: string;
+      amountFen: number;
+      date?: string;
+      remark?: string;
+      subItems?: LedgerSubItem[];
+    }
   ) =>
     request<LedgerEntryView>({
       url: `/api/kitchens/${kitchenId}/ledger/entries`, method: 'POST', data,

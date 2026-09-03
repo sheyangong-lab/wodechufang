@@ -40,6 +40,10 @@ export interface Palette {
   navBg: string;
   navTitle: string;
   tabBarBg: string;
+  /** 食本手账纸张（深色模式下纸面同步变暗，避免刺眼） */
+  paper: string;
+  paperTitle: string;
+  paperSub: string;
   /** 图表用 */
   chartTrack: string;
   chartText: string;
@@ -71,6 +75,9 @@ const lightPalette: Palette = {
   navBg: '#FFFBF2',
   navTitle: '#000000',
   tabBarBg: '#FFFFFF',
+  paper: '#FFF6EA',
+  paperTitle: '#3D3325',
+  paperSub: '#B8AD9C',
   chartTrack: '#F2ECE0',
   chartText: '#8C7F6A',
 };
@@ -101,6 +108,9 @@ const darkPalette: Palette = {
   navBg: '#16130F',
   navTitle: '#ffffff',
   tabBarBg: '#1D1914',
+  paper: '#26211A',
+  paperTitle: '#F0E9DC',
+  paperSub: '#8A7F6D',
   chartTrack: '#373026',
   chartText: '#A79B87',
 };

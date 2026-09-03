@@ -2,6 +2,7 @@ package com.sharedkitchen.module.ledger;
 
 import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.write.style.column.LongestMatchColumnWidthStyleStrategy;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sharedkitchen.common.BusinessException;
 import com.sharedkitchen.module.kitchen.KitchenMember;
 import com.sharedkitchen.module.kitchen.KitchenMemberRepository;
@@ -30,15 +31,21 @@ public class LedgerService {
     private final LedgerCategoryRepository categoryRepository;
     private final KitchenMemberRepository memberRepository;
     private final UserRepository userRepository;
+    private final ObjectMapper objectMapper;
+    private final GlmVisionClient glmVision;
 
     public LedgerService(LedgerEntryRepository ledgerRepository,
                          LedgerCategoryRepository categoryRepository,
                          KitchenMemberRepository memberRepository,
-                         UserRepository userRepository) {
+                         UserRepository userRepository,
+                         ObjectMapper objectMapper,
+                         GlmVisionClient glmVision) {
         this.ledgerRepository = ledgerRepository;
         this.categoryRepository = categoryRepository;
         this.memberRepository = memberRepository;
         this.userRepository = userRepository;
+        this.objectMapper = objectMapper;
+        this.glmVision = glmVision;
     }
 
     // ---------- 账本分类（每厨房可自定义） ----------
@@ -110,12 +117,14 @@ public class LedgerService {
             throw new BusinessException("金额必须大于 0");
         }
         String date = validDate(req.date());
+        List<SubItemView> subItems = validSubItems(req.subItems(), req.amountFen());
         LedgerEntry e = new LedgerEntry();
         e.setKitchenId(kitchenId);
         e.setType(req.type());
         e.setSource(LedgerEntry.SOURCE_MANUAL);
         e.setCategory(req.category() == null || req.category().isBlank() ? "其他" : req.category().trim());
         e.setAmountFen(req.amountFen());
+        e.setSubItems(toSubItemsJson(subItems));
         e.setDineDate(date);
         e.setRemark(req.remark() == null ? "" : req.remark().trim());
         e.setCreatedBy(userId);
@@ -131,6 +140,63 @@ public class LedgerService {
                 .orElseThrow(() -> new BusinessException(404, "流水不存在"));
         requireMember(e.getKitchenId(), userId);
         ledgerRepository.delete(e);
+    }
+
+    /**
+     * AI 识别小票/账单：图片直接转发 GLM-4.6V（base64 内联），返回识别出的分项与金额。
+     * 图片仅在内存中转换，不落盘存储。
+     */
+    public List<GlmVisionClient.RecognizedItem> recognizeReceipt(Long userId, Long kitchenId, byte[] imageBytes, String filename) {
+        requireMember(kitchenId, userId);
+        if (!glmVision.enabled()) {
+            throw new BusinessException("未配置 GLM API Key（服务端环境变量 GLM_API_KEY）");
+        }
+        if (imageBytes == null || imageBytes.length == 0) {
+            throw new BusinessException("请选择图片");
+        }
+        String lower = filename == null ? "" : filename.toLowerCase();
+        String mime;
+        if (lower.endsWith(".png")) mime = "image/png";
+        else if (lower.endsWith(".webp")) mime = "image/webp";
+        else mime = "image/jpeg";
+        byte[] payload = imageBytes;
+        // >512KB 一律压缩：缩到长边 1600 转 JPEG，省 token 省流量（正常压缩图无需重编）
+        if (imageBytes.length > 512 * 1024 && !mime.equals("image/webp")) {
+            byte[] scaled = downscaleJpeg(imageBytes);
+            if (scaled.length < imageBytes.length) {
+                payload = scaled;
+                mime = "image/jpeg";
+            }
+        }
+        String content = glmVision.chat(GlmVisionClient.RECEIPT_PROMPT,
+                java.util.Base64.getEncoder().encodeToString(payload), mime);
+        List<GlmVisionClient.RecognizedItem> items = GlmVisionClient.parseItems(content, objectMapper);
+        if (items.isEmpty()) {
+            throw new BusinessException("AI 没有识别出消费项目，试试更清晰的照片");
+        }
+        return items;
+    }
+
+    /** ImageIO 缩图：长边压到 1600px，JPEG 质量 0.85。 */
+    private byte[] downscaleJpeg(byte[] src) {
+        try {
+            java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(src));
+            if (img == null) return src; // 解不出来就原样发
+            int w = img.getWidth(), h = img.getHeight();
+            double scale = Math.min(1.0, 1600.0 / Math.max(w, h));
+            int tw = Math.max(1, (int) Math.round(w * scale));
+            int th = Math.max(1, (int) Math.round(h * scale));
+            java.awt.image.BufferedImage out = new java.awt.image.BufferedImage(tw, th, java.awt.image.BufferedImage.TYPE_INT_RGB);
+            java.awt.Graphics2D g = out.createGraphics();
+            g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.drawImage(img, 0, 0, tw, th, null);
+            g.dispose();
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            javax.imageio.ImageIO.write(out, "jpg", bos);
+            return bos.toByteArray();
+        } catch (Exception e) {
+            return src;
+        }
     }
 
     /** 月度流水列表。 */
@@ -192,12 +258,12 @@ public class LedgerService {
                 .map(e -> List.of(e.date(), e.type().equals("REFUND") ? "退款冲销" : "菜品销售",
                         e.orderId() == null ? "" : String.valueOf(e.orderId()),
                         fen(e.type().equals("REFUND") ? -e.amountFen() : e.amountFen()),
-                        e.remark()))
+                        remarkWithSubItems(e)))
                 .toList();
         List<List<String>> expenseRows = entries.stream()
                 .filter(e -> LedgerEntry.TYPE_EXPENSE.equals(e.type()))
                 .map(e -> List.of(e.date(), e.category(),
-                        "", fen(e.amountFen()), e.remark()))
+                        "", fen(e.amountFen()), remarkWithSubItems(e)))
                 .toList();
         try {
             File dir = new File(EXPORT_DIR);
@@ -225,6 +291,16 @@ public class LedgerService {
 
     private String fen(Long amountFen) {
         return java.math.BigDecimal.valueOf(amountFen == null ? 0 : amountFen, 2).toPlainString();
+    }
+
+    /** Excel 备注列：有分项时追加「分项：蔬菜 30.00 / 肉 50.00」。 */
+    private String remarkWithSubItems(LedgerEntryView e) {
+        if (e.subItems() == null || e.subItems().isEmpty()) return e.remark();
+        String detail = e.subItems().stream()
+                .map(s -> s.name() + " " + fen(s.amountFen()))
+                .reduce((a, b) -> a + " / " + b).orElse("");
+        String prefix = e.remark().isBlank() ? "" : e.remark() + "；";
+        return prefix + "分项：" + detail;
     }
 
     /** 分类须属于该厨房该类型；不传时按类型落到默认分类。 */
@@ -270,6 +346,56 @@ public class LedgerService {
         return date.trim();
     }
 
+    /**
+     * 分费用校验：每项名称非空（≤20字）、金额>0，且分项合计必须等于总金额。
+     * 返回规范化（去空白）后的分项列表；未传/传空返回 null。
+     */
+    private List<SubItemView> validSubItems(List<SubItemReq> raw, long totalFen) {
+        if (raw == null || raw.isEmpty()) return null;
+        List<SubItemView> list = new ArrayList<>();
+        long sum = 0;
+        for (SubItemReq s : raw) {
+            if (s == null || s.name() == null || s.name().isBlank()) {
+                throw new BusinessException("分费用名称不能为空");
+            }
+            if (s.amountFen() == null || s.amountFen() <= 0) {
+                throw new BusinessException("分费用金额必须大于 0");
+            }
+            String name = s.name().trim();
+            if (name.length() > 20) {
+                throw new BusinessException("分费用名称最多20个字");
+            }
+            if (list.size() >= 20) {
+                throw new BusinessException("分费用最多 20 项");
+            }
+            list.add(new SubItemView(name, s.amountFen()));
+            sum += s.amountFen();
+        }
+        if (sum != totalFen) {
+            throw new BusinessException("分费用合计与总金额不一致，请检查");
+        }
+        return list;
+    }
+
+    private String toSubItemsJson(List<SubItemView> subItems) {
+        if (subItems == null) return null;
+        try {
+            return objectMapper.writeValueAsString(subItems);
+        } catch (Exception ex) {
+            throw new BusinessException("分费用保存失败，请重试");
+        }
+    }
+
+    private List<SubItemView> parseSubItems(String json) {
+        if (json == null || json.isBlank()) return null;
+        try {
+            return objectMapper.readValue(json,
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, SubItemView.class));
+        } catch (Exception ex) {
+            return null; // 历史脏数据不阻塞展示
+        }
+    }
+
     private String validMonth(String month) {
         if (month == null || month.isBlank()) return LocalDate.now().toString().substring(0, 7);
         if (!month.trim().matches("\\d{4}-\\d{2}")) {
@@ -293,17 +419,23 @@ public class LedgerService {
 
     private LedgerEntryView toView(LedgerEntry e) {
         return new LedgerEntryView(e.getId(), e.getType(), e.getSource(), e.getOrderId(),
-                e.getCategory(), e.getAmountFen(), e.getDineDate(), e.getRemark(), e.getCreatedAt());
+                e.getCategory(), e.getAmountFen(), e.getDineDate(), e.getRemark(),
+                parseSubItems(e.getSubItems()), e.getCreatedAt());
     }
 
     public record ManualEntryReq(String type, String category,
-                                 Long amountFen, String date, String remark) {}
+                                 Long amountFen, String date, String remark,
+                                 List<SubItemReq> subItems) {}
+
+    public record SubItemReq(String name, Long amountFen) {}
 
     public record LedgerCategoryView(Long id, String type, String name) {}
 
     public record LedgerEntryView(Long id, String type, String source, Long orderId,
                                   String category, Long amountFen, String date,
-                                  String remark, String createdAt) {}
+                                  String remark, List<SubItemView> subItems, String createdAt) {}
+
+    public record SubItemView(String name, Long amountFen) {}
 
     public record MonthSummary(long income, long refund, long expense, long balance,
                                List<DayPoint> days) {}

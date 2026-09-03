@@ -33,7 +33,8 @@ public class LedgerController {
             String category,
             @NotNull Long amountFen,
             String date,
-            String remark) {}
+            String remark,
+            List<LedgerService.SubItemReq> subItems) {}
 
     @PostMapping("/entries")
     public ApiResponse<LedgerService.LedgerEntryView> add(
@@ -42,7 +43,7 @@ public class LedgerController {
         Long userId = userId(request);
         return ApiResponse.ok(ledgerService.addManual(userId, kitchenId,
                 new LedgerService.ManualEntryReq(req.type(), req.category(),
-                        req.amountFen(), req.date(), req.remark())));
+                        req.amountFen(), req.date(), req.remark(), req.subItems())));
     }
 
     @GetMapping("/entries")
@@ -50,6 +51,21 @@ public class LedgerController {
             HttpServletRequest request, @PathVariable Long kitchenId,
             @RequestParam(required = false) String month) {
         return ApiResponse.ok(ledgerService.list(userId(request), kitchenId, month));
+    }
+
+    /** AI 识别小票/账单：multipart 直传，服务端转 base64 调 GLM-4.6V，返回识别出的分项。 */
+    @PostMapping("/recognize")
+    public ApiResponse<List<GlmVisionClient.RecognizedItem>> recognize(
+            HttpServletRequest request, @PathVariable Long kitchenId,
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        String filename = file == null ? "" : file.getOriginalFilename();
+        byte[] bytes;
+        try {
+            bytes = file == null ? null : file.getBytes();
+        } catch (java.io.IOException e) {
+            bytes = null;
+        }
+        return ApiResponse.ok(ledgerService.recognizeReceipt(userId(request), kitchenId, bytes, filename));
     }
 
     @DeleteMapping("/entries/{id}")

@@ -3,11 +3,13 @@ import { theme } from '@/styles/theme';
 import { fridgeApi, UNIT_LABELS } from '@/api/fridge';
 import type { FridgeCategoryView } from '@/api/fridge';
 import { fullUrl } from '@/api/dish';
-import { chooseSubjectImage } from '@/utils/image-pick';
+import { chooseOneImage, processCutout } from '@/utils/image-pick';
+import type { CutoutKind } from '@/utils/image-pick';
 import { ensureKitchenId, getCurrentKitchenId } from '@/api/kitchen';
 import { onLoad } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import ActionSheet from '@/components/action-sheet.vue';
+import CutoutEditor from '@/components/cutout-editor.vue';
 
 interface Draft {
   name: string;
@@ -85,13 +87,38 @@ async function onPhotoSourcePick(key: string) {
     uni.previewImage({ urls: [fullUrl(drafts.value[photoTarget.value].imageUrl)] });
     return;
   }
+  const source = key as 'camera' | 'album';
+  const tempPath = await chooseOneImage(source);
+  if (!tempPath) return;
+  cutoutSrc.value = tempPath;
+  cutoutTarget.value = photoTarget.value;
+  cutoutVisible.value = true;
+}
+
+// ----- 抠图编辑器：自动 / 框选 / 涂抹 -----
+const cutoutVisible = ref(false);
+const cutoutSrc = ref('');
+const cutoutTarget = ref<number | null>(null);
+
+async function onCutoutConfirm(payload: { kind: CutoutKind; blob: Blob | null }) {
+  cutoutVisible.value = false;
+  const titles = { auto: '识别主体中…', box: '识别框内主体…', paint: '生成贴纸…' };
+  uni.showLoading({ title: titles[payload.kind], mask: true });
   try {
-    const { url, segmented } = await chooseSubjectImage([key as 'camera' | 'album']);
-    drafts.value[photoTarget.value].imageUrl = url;
-    uni.showToast({ title: segmented ? '已识别主体并去背景' : '已使用原图', icon: 'none' });
+    const { url, segmented } = await processCutout(payload.kind, cutoutSrc.value, payload.blob, { keepFrame: payload.kind === "box" });
+    if (cutoutTarget.value !== null) {
+      drafts.value[cutoutTarget.value].imageUrl = url;
+    }
+    uni.hideLoading();
+    uni.showToast({ title: segmented ? '已抠图去背景' : '已使用裁剪图', icon: 'none' });
   } catch {
-    // 取消或上传失败（失败已有 toast）
+    uni.hideLoading();
+    uni.showToast({ title: '处理失败，请重试', icon: 'none' });
   }
+}
+
+function onCutoutCancel() {
+  cutoutVisible.value = false;
 }
 
 function removeImage(i: number) {
@@ -225,6 +252,12 @@ function submit() {
       :items="catItems"
       @select="onCatPick"
       @close="catSheetVisible = false"
+    />
+    <CutoutEditor
+      :visible="cutoutVisible"
+      :src="cutoutSrc"
+      @confirm="onCutoutConfirm"
+      @cancel="onCutoutCancel"
     />
     <ActionSheet
       :visible="photoSourceVisible"

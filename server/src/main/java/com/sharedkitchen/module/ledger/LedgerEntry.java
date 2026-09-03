@@ -47,6 +47,10 @@ public class LedgerEntry {
     @Column(nullable = false)
     private String remark = "";
 
+    /** 分费用明细 JSON 数组文本（如 [{"name":"蔬菜","amountFen":3000}]）；无分项时为 null。 */
+    @Column(name = "sub_items")
+    private String subItems;
+
     @Column(name = "created_by")
     private Long createdBy;
 
@@ -71,6 +75,8 @@ public class LedgerEntry {
     public void setDineDate(String dineDate) { this.dineDate = dineDate; }
     public String getRemark() { return remark; }
     public void setRemark(String remark) { this.remark = remark; }
+    public String getSubItems() { return subItems; }
+    public void setSubItems(String subItems) { this.subItems = subItems; }
     public Long getCreatedBy() { return createdBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
     public String getCreatedAt() { return createdAt; }
