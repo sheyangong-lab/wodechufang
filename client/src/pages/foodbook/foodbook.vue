@@ -4,14 +4,16 @@ import { foodbookApi } from '@/api/foodbook';
 import type { FoodbookItemView } from '@/api/foodbook';
 import { ensureKitchenId, getCurrentKitchenId } from '@/api/kitchen';
 import { todayStr } from '@/utils/fmt';
-import { chooseSubjectImage } from '@/utils/image-pick';
-import { removeBackground } from '@/utils/segment';
+import { removeBackground, warmupSegmentation } from '@/utils/segment';
+import { fullUrl } from '@/api/dish';
 import { getApiBase } from '@/api/config';
-import { onLoad } from '@dcloudio/uni-app';
+import { onShow, onLoad } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import CustomTabbar from '@/components/custom-tabbar.vue';
 import CalendarPicker from '@/components/calendar-picker.vue';
 import ActionSheet from '@/components/action-sheet.vue';
+import CutoutEditor from '@/components/cutout-editor.vue';
+import { chooseOneImage, processCutout } from '@/utils/image-pick';
 
 const kitchenId = ref<number | null>(getCurrentKitchenId());
 const date = ref(todayStr());
@@ -33,11 +35,6 @@ interface StagedSticker {
 const PAGE_ID = 'foodbook-page';
 let pageW = 0;
 let pageH = 0;
-let dragKey = '';
-let dragStartX = 0;
-let dragStartY = 0;
-let dragOrigLeft = 0;
-let dragOrigTop = 0;
 
 const dateLabel = computed(() => {
   const today = todayStr();
@@ -70,6 +67,19 @@ onLoad(async () => {
   kitchenId.value = await ensureKitchenId();
   await load();
   measurePage();
+  warmupSegmentation(); // 空闲预热抠图模型，首次抠图不再等加载
+});
+
+// App 长期驻留后台跨天后，页面缓存的"今天"会过期：
+// 若用户停在"创建那天的今天"，onShow 时静默追到新的今天并刷新；
+// 用户手动选过的其他日期不动。
+const bootedToday = todayStr();
+onShow(() => {
+  const t = todayStr();
+  if (t !== bootedToday && date.value === bootedToday) {
+    date.value = t;
+    load();
+  }
 });
 
 async function load() {
@@ -100,53 +110,94 @@ function measurePage() {
 // ---------- 添加贴纸（拍照/上传，可多张，可选主体识别） ----------
 
 const addItems = [
-  { key: 'camera-seg', title: '拍照 · 主体识别', desc: '拍多张，自动抠图加白边' },
-  { key: 'album-seg', title: '相册 · 主体识别', desc: '选多张，自动抠图加白边' },
-  { key: 'camera', title: '拍照 · 原图', desc: '不抠图直接贴上' },
-  { key: 'album', title: '相册 · 原图', desc: '不抠图直接贴上' },
+  { key: 'camera', title: '拍照 · 抠图', desc: '自动识别 / 框选 / 涂抹' },
+  { key: 'album', title: '相册 · 抠图', desc: '自动识别 / 框选 / 涂抹' },
+  { key: 'camera-raw', title: '拍照 · 原图', desc: '不抠图直接贴上' },
+  { key: 'album-raw', title: '相册 · 原图', desc: '不抠图直接贴上' },
 ];
 
 function openAdd() {
   addSheetVisible.value = true;
 }
 
-async function onAddPick(key: string) {
-  addSheetVisible.value = false;
-  const seg = key.endsWith('seg');
-  const sourceType: ('camera' | 'album')[] = [key.startsWith('camera') ? 'camera' : 'album'];
-
-  // 多选临时图（H5 为 blob: URL）
-  const tempPaths = await new Promise<string[]>((resolve, reject) => {
+/** 单次选图（H5 返回 blob: URL 数组；用户取消返回空数组） */
+function chooseOnce(sourceType: ('camera' | 'album')[], count: number): Promise<string[]> {
+  return new Promise((resolve) => {
     uni.chooseImage({
-      count: 9,
+      count,
       sizeType: ['compressed'],
       sourceType,
       success: (res) => resolve(res.tempFilePaths as string[]),
-      fail: () => reject(new Error('cancel')),
+      fail: () => resolve([]),
     });
-  }).catch(() => []);
+  });
+}
 
-  if (tempPaths.length === 0) return;
+/** 拍完一张后询问是否继续，实现连续拍照 */
+function askKeepShooting(count: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    uni.showModal({
+      title: '继续拍吗？',
+      content: `已拍 ${count} 张，可继续拍或结束`,
+      confirmText: '继续拍',
+      cancelText: '就这些',
+      success: (r) => resolve(!!r.confirm),
+      fail: () => resolve(false),
+    });
+  });
+}
+
+async function pickTempPaths(sourceType: 'camera' | 'album', maxCount = 9): Promise<string[]> {
+  if (sourceType === 'album') {
+    return chooseOnce(['album'], maxCount);
+  }
+  // 系统相机一次只回传一张，这里循环调起并逐张询问，实现连续拍
+  const paths: string[] = [];
+  while (paths.length < maxCount) {
+    const one = await chooseOnce(['camera'], 1);
+    if (one.length === 0) break; // 用户取消
+    paths.push(...one);
+    if (paths.length >= maxCount) break;
+    if (!(await askKeepShooting(paths.length))) break;
+  }
+  return paths;
+}
+
+async function onAddPick(key: string) {
+  addSheetVisible.value = false;
+  if (key.endsWith('raw')) {
+    // 原图：不走编辑器
+    const sourceType: 'camera' | 'album' = key.startsWith('camera') ? 'camera' : 'album';
+    const tempPaths = await pickTempPaths(sourceType, 9);
+    if (tempPaths.length === 0) return;
+    processRawImages(tempPaths);
+    return;
+  }
+  // 抠图（默认）：单张选图后进入编辑器（自动 / 框选 / 涂抹）
+  const sourceType: 'camera' | 'album' = key.startsWith('camera') ? 'camera' : 'album';
+  const tempPath = await chooseOneImage(sourceType);
+  if (tempPath) {
+    editorSrc.value = tempPath;
+    editorVisible.value = true;
+  }
+}
+
+/** 原图批量处理（不抠图直接贴上） */
+async function processRawImages(tempPaths: string[]) {
   uni.showLoading({ title: `处理中 0/${tempPaths.length}`, mask: true });
 
   let slot = staged.value.length;
   for (let i = 0; i < tempPaths.length; i++) {
     uni.showLoading({ title: `处理中 ${i + 1}/${tempPaths.length}`, mask: true });
     try {
-      let blob: Blob;
-      if (seg) {
-        blob = (await removeBackground(tempPaths[i])).blob;
-      } else {
-        blob = await (await fetch(tempPaths[i])).blob();
-      }
+      const blob = await (await fetch(tempPaths[i])).blob();
       const url = await uploadBlob(blob);
-      const wPct = seg ? 42 : 62; // 抠图窄、原图宽
       staged.value.push({
         key: `s-${Date.now()}-${i}`,
         imageUrl: url,
-        left: 12 + ((slot * 17) % 44), // 初始错开摆放
+        left: 12 + ((slot * 17) % 44),
         top: 8 + ((slot * 13) % 46),
-        widthPct: wPct,
+        widthPct: 62, // 原图宽
       });
       slot++;
     } catch {
@@ -158,6 +209,37 @@ async function onAddPick(key: string) {
     uni.showToast({ title: `${staged.value.length} 张待摆放，拖动调整后点「完成」`, icon: 'none' });
   }
   measurePage();
+}
+
+// ----- 手动抠图编辑器 -----
+
+const editorVisible = ref(false);
+const editorSrc = ref('');
+
+function onCutoutCancel() {
+  editorVisible.value = false;
+}
+
+async function onCutoutConfirm(payload: { kind: 'auto' | 'box' | 'paint'; blob: Blob | null }) {
+  editorVisible.value = false;
+  const titles = { auto: '识别主体中…', box: '识别框内主体…', paint: '生成贴纸…' };
+  uni.showLoading({ title: titles[payload.kind], mask: true });
+  try {
+    const { url } = await processCutout(payload.kind, editorSrc.value, payload.blob, { keepFrame: payload.kind === 'box' });
+    staged.value.push({
+      key: `s-${Date.now()}-c`,
+      imageUrl: url,
+      left: 12 + ((staged.value.length * 17) % 44),
+      top: 8 + ((staged.value.length * 13) % 46),
+      widthPct: 42,
+    });
+    uni.hideLoading();
+    uni.showToast({ title: '已贴上，拖动调整后点「完成」', icon: 'none' });
+    measurePage();
+  } catch {
+    uni.hideLoading();
+    uni.showToast({ title: '处理失败，请重试', icon: 'none' });
+  }
 }
 
 function uploadBlob(blob: Blob): Promise<string> {
@@ -177,41 +259,58 @@ function uploadBlob(blob: Blob): Promise<string> {
 }
 
 // ---------- 拖动（staged 自由摆放） ----------
+// dragKey/dragDx/dragDy 必须是 ref：原来用普通变量，touchmove 不触发重渲染，
+// 贴纸只在松手后跳位（表现为"卡顿"）；且拖动中用 translate3d 走合成层，不触发布局
+const dragKey = ref('');
+const dragDx = ref(0);
+const dragDy = ref(0);
+let dragStartX = 0;
+let dragStartY = 0;
+let dragOrigLeft = 0; // 拖动起点，px
+let dragOrigTop = 0;
 
-function pxLeft(s: StagedSticker) {
-  return dragKey === s.key ? dragLeft : (s.left / 100) * pageW;
+function stickerStyle(s: StagedSticker) {
+  const style: Record<string, string | number> = {
+    left: `${s.left}%`,
+    top: `${s.top}%`,
+    width: `${s.widthPct}%`,
+    zIndex: 100,
+  };
+  if (dragKey.value === s.key) {
+    style.transform = `translate3d(${dragDx.value}px, ${dragDy.value}px, 0)`;
+  }
+  return style;
 }
-function pxTop(s: StagedSticker) {
-  return dragKey === s.key ? dragTop : (s.top / 100) * pageH;
-}
-let dragLeft = 0;
-let dragTop = 0;
 
 function onTouchStart(e: TouchEvent, s: StagedSticker) {
   if (!pageW) measurePage();
   const t = e.touches[0];
   dragStartX = t.clientX;
   dragStartY = t.clientY;
-  dragOrigLeft = pxLeft(s);
-  dragOrigTop = pxTop(s);
-  dragKey = s.key;
-  dragLeft = dragOrigLeft;
-  dragTop = dragOrigTop;
+  dragOrigLeft = (s.left / 100) * pageW;
+  dragOrigTop = (s.top / 100) * pageH;
+  dragKey.value = s.key;
+  dragDx.value = 0;
+  dragDy.value = 0;
 }
 
 function onTouchMove(e: TouchEvent, s: StagedSticker) {
-  if (dragKey !== s.key) return;
+  if (dragKey.value !== s.key) return;
   const t = e.touches[0];
   const wPx = (s.widthPct / 100) * pageW;
-  dragLeft = Math.max(0, Math.min(pageW - wPx, dragOrigLeft + (t.clientX - dragStartX)));
-  dragTop = Math.max(0, Math.min(pageH - 40, dragOrigTop + (t.clientY - dragStartY)));
+  const nx = Math.max(0, Math.min(pageW - wPx, dragOrigLeft + (t.clientX - dragStartX)));
+  const ny = Math.max(0, Math.min(pageH - 40, dragOrigTop + (t.clientY - dragStartY)));
+  dragDx.value = nx - dragOrigLeft;
+  dragDy.value = ny - dragOrigTop;
 }
 
 function onTouchEnd(s: StagedSticker) {
-  if (dragKey !== s.key) return;
-  s.left = (dragLeft / (pageW || 1)) * 100;
-  s.top = (dragTop / (pageH || 1)) * 100;
-  dragKey = '';
+  if (dragKey.value !== s.key) return;
+  s.left = ((dragOrigLeft + dragDx.value) / (pageW || 1)) * 100;
+  s.top = ((dragOrigTop + dragDy.value) / (pageH || 1)) * 100;
+  dragKey.value = '';
+  dragDx.value = 0;
+  dragDy.value = 0;
 }
 
 // ---------- 完成（落库） / 删除 / 导出 ----------
@@ -346,12 +445,13 @@ async function exportPage() {
         v-for="s in staged"
         :key="s.key"
         class="sticker drag"
-        :style="{ left: pxLeft(s) + 'px', top: pxTop(s) + 'px', width: s.widthPct + '%' }"
+        :style="stickerStyle(s)"
         @touchstart="onTouchStart($event, s)"
         @touchmove.stop.prevent="onTouchMove($event, s)"
         @touchend="onTouchEnd(s)"
+        @touchcancel="onTouchEnd(s)"
       >
-        <image class="sticker-img" :src="s.imageUrl" mode="widthFix" />
+        <image class="sticker-img" :src="fullUrl(s.imageUrl)" mode="widthFix" />
         <text class="sticker-del" @tap.stop="removeSticker({ key: s.key })">✕</text>
       </view>
       <text v-if="saved.length === 0 && staged.length === 0" class="page-empty">
@@ -379,6 +479,14 @@ async function exportPage() {
       :items="addItems"
       @select="onAddPick"
       @close="addSheetVisible = false"
+    />
+
+    <!-- 手动抠图编辑器：框选 / 涂抹 -->
+    <CutoutEditor
+      :visible="editorVisible"
+      :src="editorSrc"
+      @confirm="onCutoutConfirm"
+      @cancel="onCutoutCancel"
     />
 
         </view>
@@ -412,7 +520,8 @@ async function exportPage() {
 .page-area {
   position: relative;
   height: 72vh;
-  background: #FFF6EA;
+  /* 纸张色随深浅色主题切换（theme.paper），深色下不再刺眼 */
+  background: v-bind('theme.paper');
   border: 2rpx solid v-bind('theme.divider');
   border-radius: 20rpx;
   overflow: hidden;
@@ -420,15 +529,15 @@ async function exportPage() {
 }
 .page-title {
   position: absolute; top: 16rpx; left: 20rpx;
-  font-size: 26rpx; font-weight: 700; color: #3D3325;
+  font-size: 26rpx; font-weight: 700; color: v-bind('theme.paperTitle');
 }
 .page-empty {
   position: absolute; top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 26rpx; color: #B8AD9C;
+  font-size: 26rpx; color: v-bind('theme.paperSub');
 }
 .sticker { position: absolute; }
-.sticker.drag { opacity: 0.92; }
+.sticker.drag { opacity: 0.92; will-change: transform; }
 .sticker-img { width: 100%; }
 .sticker-del {
   position: absolute; top: -12rpx; right: -12rpx;

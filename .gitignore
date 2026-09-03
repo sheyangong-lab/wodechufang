@@ -24,3 +24,7 @@ server/data/
 /Screenshot_*.png
 test-results/
 /data/
+
+# 秘密配置：.env 存 API Key，严禁提交
+.env
+server/.env

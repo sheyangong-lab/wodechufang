@@ -2,11 +2,13 @@
 import { theme } from '@/styles/theme';
 import { fridgeApi, UNIT_LABELS } from '@/api/fridge';
 import type { FridgeCategoryView, FridgeItemView } from '@/api/fridge';
-import { uploadImage, fullUrl } from '@/api/dish';
+import { fullUrl } from '@/api/dish';
 import { ensureKitchenId, getCurrentKitchenId } from '@/api/kitchen';
 import { onLoad } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import ActionSheet from '@/components/action-sheet.vue';
+import CutoutEditor from '@/components/cutout-editor.vue';
+import { chooseOneImage, processCutout, type CutoutKind } from '@/utils/image-pick';
 
 const kitchenId = ref<number | null>(getCurrentKitchenId());
 const itemId = ref<number | null>(null);
@@ -75,8 +77,55 @@ function onCatPick(key: string) {
   categoryId.value = Number(key);
 }
 
+// ----- 图片：拍照/相册 → 抠图编辑器（自动/框选/涂抹）→ 上传，与其他图片入口一致 -----
+const photoSourceVisible = ref(false);
+const photoSourceItems = computed(() => {
+  const items: { key: string; title: string; desc: string }[] = [];
+  if (imageUrl.value) items.push({ key: 'preview', title: '查看大图', desc: '原图完整查看' });
+  items.push({ key: 'camera', title: '拍照', desc: '拍完自动识别主体、去除背景' });
+  items.push({ key: 'album', title: '从相册选择', desc: '选完自动识别主体、去除背景' });
+  return items;
+});
+
 function pickImage() {
-  uploadImage().then((url) => (imageUrl.value = url)).catch(() => {});
+  photoSourceVisible.value = true;
+}
+
+async function onPhotoSourcePick(key: string) {
+  photoSourceVisible.value = false;
+  if (key === 'preview') {
+    uni.previewImage({ urls: [fullUrl(imageUrl.value)] });
+    return;
+  }
+  const source = key as 'camera' | 'album';
+  const tempPath = await chooseOneImage(source);
+  if (!tempPath) return;
+  cutoutSrc.value = tempPath;
+  cutoutVisible.value = true;
+}
+
+const cutoutVisible = ref(false);
+const cutoutSrc = ref('');
+
+async function onCutoutConfirm(payload: { kind: CutoutKind; blob: Blob | null }) {
+  cutoutVisible.value = false;
+  const titles = { auto: '识别主体中…', box: '识别框内主体…', paint: '生成贴纸…' };
+  uni.showLoading({ title: titles[payload.kind], mask: true });
+  try {
+    const { url, segmented } = await processCutout(payload.kind, cutoutSrc.value, payload.blob, {
+      keepFrame: payload.kind === 'box',
+    });
+    imageUrl.value = url;
+    uni.hideLoading();
+    uni.showToast({ title: segmented ? '已抠图去背景' : '已使用裁剪图', icon: 'none' });
+  } catch {
+    uni.hideLoading();
+    uni.showToast({ title: '处理失败，请重试', icon: 'none' });
+  }
+}
+
+function onCutoutCancel() {
+  cutoutVisible.value = false;
 }
 
 function removeImage() {
@@ -174,6 +223,18 @@ function submit() {
       :items="catItems"
       @select="onCatPick"
       @close="catSheetVisible = false"
+    />
+    <ActionSheet
+      :visible="photoSourceVisible"
+      :items="photoSourceItems"
+      @select="onPhotoSourcePick"
+      @close="photoSourceVisible = false"
+    />
+    <CutoutEditor
+      :visible="cutoutVisible"
+      :src="cutoutSrc"
+      @confirm="onCutoutConfirm"
+      @cancel="onCutoutCancel"
     />
   </view>
 </template>

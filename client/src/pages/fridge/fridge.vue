@@ -410,7 +410,8 @@ function removeOne(i: FItem) {
   flex: 1; overflow-y: auto;
   min-height: 0;
   padding: 24rpx;
-  padding-bottom: 160rpx;
+  /* 底部避让：自绘tabbar(54px)+操作栏(~50px)+呼吸空间，列表末项不被压住 */
+  padding-bottom: calc(var(--sk-tabbar-h, 54px) + 200rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .card {
@@ -503,7 +504,10 @@ function removeOne(i: FItem) {
 
 .bottom-ops {
   position: fixed; left: 0; right: 0;
-  bottom: calc(140rpx + env(safe-area-inset-bottom));
+  /* 悬在自绘tabbar上方留呼吸空隙，不再贴死底部 */
+  bottom: calc(var(--sk-tabbar-h, 54px) + 40rpx + env(safe-area-inset-bottom));
+  /* 食材卡片(swipe-content)带z-index:2，会被滚动盖住操作栏，这里必须显式压回上层 */
+  z-index: 100;
   display: flex;
   background: v-bind('theme.card');
   padding: 18rpx 12rpx;

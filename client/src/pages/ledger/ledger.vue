@@ -16,6 +16,7 @@ const summary = ref<MonthSummary>({ income: 0, refund: 0, expense: 0, balance: 0
 const entries = ref<LedgerEntryView[]>([]);
 const showStats = ref(false);
 const loading = ref(true);
+const loadFailed = ref(false);
 const calVisible = ref(false);
 const calSelected = computed(() => `${month.value}-01`);
 
@@ -227,8 +228,13 @@ async function load() {
     ]);
     summary.value = s;
     entries.value = list;
+    loadFailed.value = false;
   } catch {
-    // toast 已统一弹出
+    // 网络失败且无缓存：清空并给出可见的失败态，
+    // 避免"月份文字变了但数据还是上个月的"这种看似切换失灵的误导
+    summary.value = { income: 0, refund: 0, expense: 0, balance: 0, days: [] };
+    entries.value = [];
+    loadFailed.value = true;
   } finally {
     loading.value = false;
   }
@@ -268,6 +274,19 @@ function typeLabel(e: LedgerEntryView) {
   if (e.type === 'EXPENSE') return e.category || '支出';
   if (e.type === 'REFUND') return '退款冲销';
   return e.category || '收入';
+}
+
+// ----- 分费用展开：点带分项的流水展开/收起明细 -----
+const expanded = ref<Record<number, boolean>>({});
+
+function hasSubItems(e: LedgerEntryView) {
+  return !!(e.subItems && e.subItems.length);
+}
+
+function onEntryTap(e: LedgerEntryView) {
+  if (hasSubItems(e)) {
+    expanded.value = { ...expanded.value, [e.id]: !expanded.value[e.id] };
+  }
 }
 
 function delEntry(e: LedgerEntryView) {
@@ -349,21 +368,42 @@ function delEntry(e: LedgerEntryView) {
         :key="e.id"
         class="card entry"
         hover-class="press-dim"
+        @tap="onEntryTap(e)"
         @longpress="delEntry(e)"
       >
-        <view class="entry-icon" :class="e.type.toLowerCase()">
-          <text>{{ e.type === 'EXPENSE' ? '支' : e.type === 'REFUND' ? '退' : '收' }}</text>
+        <view class="entry-row">
+          <view class="entry-icon" :class="e.type.toLowerCase()">
+            <text>{{ e.type === 'EXPENSE' ? '支' : e.type === 'REFUND' ? '退' : '收' }}</text>
+          </view>
+          <view class="entry-info">
+            <text class="entry-title">
+              {{ typeLabel(e) }}
+              <text v-if="e.source === 'ORDER'" class="order-tag">订单</text>
+              <text v-if="hasSubItems(e)" class="sub-tag">分{{ e.subItems!.length }}项</text>
+            </text>
+            <text v-if="e.remark" class="entry-remark">{{ e.remark }}</text>
+          </view>
+          <view class="entry-right">
+            <text class="entry-amount" :class="e.type === 'EXPENSE' ? 'out' : 'in'">
+              {{ e.type === 'EXPENSE' ? '−' : '+' }}¥{{ (e.amountFen / 100).toFixed(2) }}
+            </text>
+            <text v-if="hasSubItems(e)" class="expand-arrow" :class="{ open: expanded[e.id] }">▸</text>
+          </view>
         </view>
-        <view class="entry-info">
-          <text class="entry-title">{{ typeLabel(e) }}<text v-if="e.source === 'ORDER'" class="order-tag">订单</text></text>
-          <text v-if="e.remark" class="entry-remark">{{ e.remark }}</text>
+        <!-- 展开的分费用明细 -->
+        <view v-if="expanded[e.id] && hasSubItems(e)" class="entry-subs">
+          <view v-for="(s, si) in e.subItems" :key="si" class="entry-sub">
+            <text class="entry-sub-name">{{ s.name }}</text>
+            <text class="entry-sub-amount">¥{{ (s.amountFen / 100).toFixed(2) }}</text>
+          </view>
         </view>
-        <text class="entry-amount" :class="e.type === 'EXPENSE' ? 'out' : 'in'">
-          {{ e.type === 'EXPENSE' ? '−' : '+' }}¥{{ (e.amountFen / 100).toFixed(2) }}
-        </text>
       </view>
     </view>
-    <view v-if="!loading && entries.length === 0" class="card empty">
+    <view v-if="loadFailed && !loading" class="card empty" @tap="load">
+      <image class="empty-img" src="/static/icons/empty-ledger.png" mode="aspectFit" />
+      <text class="empty-tip">{{ month }} 数据加载失败，点此重试</text>
+    </view>
+    <view v-if="!loadFailed && !loading && entries.length === 0" class="card empty">
       <image class="empty-img" src="/static/icons/empty-ledger.png" mode="aspectFit" />
       <text class="empty-tip">{{ month }} 还没有收支记录</text>
     </view>
@@ -460,8 +500,10 @@ function delEntry(e: LedgerEntryView) {
 .loading-tip { padding: 40rpx 0; text-align: center; font-size: 24rpx; color: v-bind('theme.sub'); }
 .day-head { display: block; font-size: 24rpx; color: v-bind('theme.sub'); margin: 20rpx 0 12rpx; }
 .entry {
-  display: flex; align-items: center; gap: 20rpx;
   padding: 22rpx 28rpx; margin-bottom: 12rpx;
+}
+.entry-row {
+  display: flex; align-items: center; gap: 20rpx;
 }
 .entry-icon {
   width: 64rpx; height: 64rpx; border-radius: 18rpx;
@@ -478,10 +520,29 @@ function delEntry(e: LedgerEntryView) {
   border: 2rpx solid v-bind('theme.primaryBtn'); border-radius: 6rpx;
   padding: 0 8rpx;
 }
+.sub-tag {
+  display: inline-block; margin-left: 10rpx;
+  font-size: 18rpx; color: v-bind('theme.expense');
+  border: 2rpx solid v-bind('theme.expense'); border-radius: 6rpx;
+  padding: 0 8rpx;
+}
 .entry-remark { display: block; font-size: 22rpx; color: v-bind('theme.sub'); margin-top: 4rpx; }
+.entry-right { display: flex; flex-direction: column; align-items: flex-end; }
 .entry-amount { font-size: 30rpx; font-weight: 700; }
 .entry-amount.in { color: v-bind('theme.income'); }
 .entry-amount.out { color: v-bind('theme.expense'); }
+.expand-arrow {
+  font-size: 20rpx; color: v-bind('theme.sub'); margin-top: 2rpx;
+  transition: transform 0.2s; transform: rotate(90deg);
+}
+.expand-arrow.open { transform: rotate(270deg); }
+.entry-subs {
+  margin-top: 16rpx; padding-top: 14rpx;
+  border-top: 2rpx dashed v-bind('theme.divider');
+}
+.entry-sub { display: flex; align-items: center; padding: 8rpx 0 8rpx 84rpx; }
+.entry-sub-name { flex: 1; font-size: 25rpx; color: v-bind('theme.sub'); }
+.entry-sub-amount { font-size: 25rpx; color: v-bind('theme.title'); }
 .empty { padding: 90rpx 0; display: flex; flex-direction: column; align-items: center; gap: 14rpx; }
 .empty-img { width: 160rpx; height: 160rpx; }
 .empty-tip { font-size: 26rpx; color: v-bind('theme.sub'); }

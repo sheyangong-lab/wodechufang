@@ -24,6 +24,7 @@ curl http://localhost:8080/api/health   # {"code":0,...} 即成功
 ```
 
 - 生产切 PostgreSQL：`--spring.profiles.active=prod` + 环境变量 `DB_URL/DB_USER/DB_PASSWORD`
+- 账本「拍照识别」（智谱 GLM-4.6V）：把 `GLM_API_KEY=你的Key` 写进 `server/.env`（启动自动加载，已 gitignore 不入库；系统环境变量优先级更高，模型可用 `GLM_MODEL` 覆盖）。未配置不影响其他功能
 - 后台控制台：`http://localhost:8080/admin/index.html`（admin / admin123）
 
 ### 客户端（uni-app，H5 预览）

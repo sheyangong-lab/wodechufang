@@ -9,7 +9,7 @@
 import { getApiBase } from '@/api/config';
 import { removeBackground } from './segment';
 
-async function uploadBlob(blob: Blob, filename = 'photo.png'): Promise<string> {
+export async function uploadBlob(blob: Blob, filename = 'photo.png'): Promise<string> {
   const fd = new FormData();
   fd.append('file', blob, filename);
   const token = uni.getStorageSync('token');
@@ -69,4 +69,54 @@ export async function chooseSubjectImage(
     const url = await uploadTempPath(tempPath);
     return { url, segmented: false };
   }
+}
+
+/** 单选一张图（拍照或相册），返回临时路径；取消返回空串 */
+export function chooseOneImage(source: 'camera' | 'album'): Promise<string> {
+  return new Promise((resolve) => {
+    uni.chooseImage({
+      count: 1,
+      sizeType: ['compressed'],
+      sourceType: [source],
+      success: (res) => resolve((res.tempFilePaths as string[])?.[0] || ''),
+      fail: () => resolve(''),
+    });
+  });
+}
+
+export type CutoutKind = 'auto' | 'box' | 'paint';
+
+/**
+ * 抠图统一处理：auto=整图主体识别；box=先框选裁剪再主体识别（失败回退裁剪图）；
+ * paint=涂抹贴纸（无需 AI）。处理完统一上传，返回服务端 URL。
+ * opts.keepFrame：box 模式保留用户所选的完整画幅（不再二次紧贴主体裁剪）。
+ */
+export async function processCutout(
+  kind: CutoutKind,
+  src: string,
+  blob: Blob | null,
+  opts?: { keepFrame?: boolean }
+): Promise<{ url: string; segmented: boolean }> {
+  let final: Blob;
+  let segmented = kind === 'paint';
+  if (kind === 'auto') {
+    final = (await removeBackground(src)).blob;
+  } else if (kind === 'box') {
+    final = blob!;
+    try {
+      const u = URL.createObjectURL(blob!);
+      try {
+        final = (await removeBackground(u, opts)).blob;
+        segmented = true;
+      } finally {
+        URL.revokeObjectURL(u);
+      }
+    } catch {
+      segmented = false; // 识别失败回退普通裁剪
+    }
+  } else {
+    final = blob!;
+  }
+  const url = await uploadBlob(final, segmented ? 'sticker.png' : 'photo.jpg');
+  return { url, segmented };
 }

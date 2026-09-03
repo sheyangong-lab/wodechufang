@@ -8,6 +8,7 @@
  * 失败（超时/不支持/无模型）由调用方回退为原图。
  */
 import * as ort from 'onnxruntime-web';
+import { dilate } from './sticker';
 
 const ORT_WASM_PATH = '/static/ort/';
 const MODEL_URL = '/static/models/u2netp.onnx';
@@ -34,13 +35,23 @@ function getSession(): Promise<ort.InferenceSession> {
         if (!r.ok) throw new Error(`模型加载失败 ${r.status}`);
         return r.arrayBuffer();
       });
-      return ort.InferenceSession.create(buf, { executionProviders: ['wasm'] });
+      // 优先 WebGL（GPU 提速数倍），不支持时 ort 自动回退 wasm
+      try {
+        return await ort.InferenceSession.create(buf, { executionProviders: ['webgl'] });
+      } catch {
+        return ort.InferenceSession.create(buf, { executionProviders: ['wasm'] });
+      }
     })();
     sessionPromise.catch(() => {
       sessionPromise = null; // 失败后允许重试
     });
   }
   return sessionPromise;
+}
+
+/** 页面空闲时预热（提前拉模型+建会话），首次抠图不再等待 */
+export function warmupSegmentation() {
+  getSession().catch(() => {});
 }
 
 function loadImage(src: string, timeoutMs = 8000): Promise<HTMLImageElement> {
@@ -145,29 +156,6 @@ async function inferMask(source: HTMLCanvasElement): Promise<HTMLCanvasElement> 
   return maskCanvas;
 }
 
-/** 半径 r 的方形结构元膨胀（先横后纵两趟 max 滤波） */
-function dilate(src: Uint8ClampedArray, w: number, h: number, r: number): Uint8ClampedArray {
-  const tmp = new Uint8ClampedArray(src.length);
-  for (let y = 0; y < h; y++) {
-    const row = y * w;
-    for (let x = 0; x < w; x++) {
-      let m = 0;
-      const x0 = Math.max(0, x - r), x1 = Math.min(w - 1, x + r);
-      for (let k = x0; k <= x1; k++) if (src[row + k] > m) m = src[row + k];
-      tmp[row + x] = m;
-    }
-  }
-  const out = new Uint8ClampedArray(src.length);
-  for (let y = 0; y < h; y++) {
-    const y0 = Math.max(0, y - r), y1 = Math.min(h - 1, y + r);
-    for (let x = 0; x < w; x++) {
-      let m = 0;
-      for (let k = y0; k <= y1; k++) if (tmp[k * w + x] > m) m = tmp[k * w + x];
-      out[y * w + x] = m;
-    }
-  }
-  return out;
-}
 
 export interface SegmentResult {
   blob: Blob;
@@ -178,8 +166,13 @@ export interface SegmentResult {
 /**
  * 去除背景，返回主体 PNG。
  * @param src 图片 URL（blob:/data:/http: 均可）
+ * @param opts.keepFrame 为 true 时不做"裁剪到主体外接框"，保留输入的完整画幅
+ *   （框选模式用：用户框了什么就得到什么，识别不准也不会把结果裁得只剩一角）
  */
-export async function removeBackground(src: string): Promise<SegmentResult> {
+export async function removeBackground(
+  src: string,
+  opts?: { keepFrame?: boolean }
+): Promise<SegmentResult> {
   const source = await downscaleToCanvas(src, 1280);
 
   // 蒙版放大到原图尺寸时做轻微羽化，边缘更自然
@@ -242,6 +235,14 @@ export async function removeBackground(src: string): Promise<SegmentResult> {
   fctx.drawImage(outlineCanvas, 0, 0);
   fctx.filter = 'none';
   fctx.drawImage(outCanvas, 0, 0);
+
+  // 框选模式：保留完整画幅（背景已透明），不再紧贴识别主体二次裁剪
+  if (opts?.keepFrame) {
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      finalCanvas.toBlob((b) => (b ? resolve(b) : reject(new Error('导出失败'))), 'image/png');
+    });
+    return { blob, width: w, height: h };
+  }
 
   // 裁剪到主体外接框（含描边，留 8% 边距，细长/贴边主体不顶格）
   const sx = w;

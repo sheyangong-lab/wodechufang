@@ -68,6 +68,10 @@ function setupAndroidBackButton() {
 }
 </script>
 <style>
+/* 自绘 CustomTabbar 的内容高度（rpx 随视口宽浮动，取近似值供 fixed 元素避让） */
+:root {
+  --sk-tabbar-h: 54px;
+}
 /* ===== 全局按压反馈（hover-class 用），替代 emoji 时代的"点了没反应" ===== */
 /* 变暗：用于文字类可点元素 */
 .press-dim {
