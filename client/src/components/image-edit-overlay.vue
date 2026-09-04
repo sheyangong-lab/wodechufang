@@ -6,7 +6,7 @@
  * 仅 H5（APK 为 H5+Capacitor WebView，同样生效）。
  */
 import { theme } from '@/styles/theme';
-import { ref, watch } from 'vue';
+import { onUnmounted, ref, watch } from 'vue';
 
 const props = defineProps<{ visible: boolean; src: string }>();
 const emit = defineEmits<{
@@ -41,9 +41,12 @@ watch(
       mode.value = 'crop';
       busy.value = false;
       init();
+    } else {
+      destroyCanvas();
     }
   }
 );
+onUnmounted(destroyCanvas);
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -54,18 +57,34 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function nextFrame(): Promise<void> {
-  return new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+/**
+ * 用 JS 手挂的原生 <canvas>（同 cutout-editor）：uni h5 canvas 组件会重置
+ * backing 为 min(dpr,2)×CSS 尺寸，覆盖我们按 devicePixelRatio 的设置，
+ * 高 DPR 手机上可见内容只剩绘制区左上角。原生元素完全自控。
+ */
+let boundCvs: HTMLCanvasElement | null = null;
+
+function mountCanvas(): HTMLCanvasElement {
+  destroyCanvas();
+  const cvs = document.createElement('canvas');
+  cvs.style.touchAction = 'none';
+  cvs.style.display = 'block';
+  cvs.addEventListener('touchstart', onTouchStart as EventListener, { passive: true });
+  cvs.addEventListener('touchmove', onTouchMove as EventListener, { passive: false });
+  cvs.addEventListener('touchend', onTouchEnd as EventListener);
+  cvs.addEventListener('touchcancel', onTouchEnd as EventListener);
+  document.getElementById(CVS_ID)?.appendChild(cvs);
+  boundCvs = cvs;
+  return cvs;
+}
+
+function destroyCanvas() {
+  if (!boundCvs) return;
+  boundCvs.remove();
+  boundCvs = null;
 }
 
 async function init() {
-  // 等待遮罩层完成布局（canvas 由 v-if 挂载）
-  for (let i = 0; i < 10; i++) {
-    await nextFrame();
-    if (document.getElementById(CVS_ID)?.querySelector('canvas')) break;
-  }
-  const cvs = document.getElementById(CVS_ID)?.querySelector('canvas');
-  if (!cvs) return;
   try {
     img = await loadImage(props.src);
   } catch {
@@ -79,6 +98,7 @@ async function init() {
   s1 = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
   cssW = Math.round(img.naturalWidth * s1);
   cssH = Math.round(img.naturalHeight * s1);
+  const cvs = mountCanvas();
   cvs.width = Math.round(cssW * DPR);
   cvs.height = Math.round(cssH * DPR);
   cvs.style.width = cssW + 'px';
@@ -97,12 +117,11 @@ async function init() {
 }
 
 function ctx2d(): CanvasRenderingContext2D | null {
-  const cvs = document.getElementById(CVS_ID)?.querySelector('canvas');
-  return cvs ? cvs.getContext('2d') : null;
+  return boundCvs ? boundCvs.getContext('2d') : null;
 }
 
 function canvasPos(e: TouchEvent): { x: number; y: number } {
-  const cvs = document.getElementById(CVS_ID)?.querySelector('canvas')!;
+  const cvs = boundCvs!;
   const r = cvs.getBoundingClientRect();
   const t = e.touches[0];
   return { x: t.clientX - r.left, y: t.clientY - r.top };
@@ -136,7 +155,6 @@ function redraw() {
     ].forEach(([hx, hy]) => ctx.fillRect(hx - 7, hy - 7, 14, 14));
   } else if (mask) {
     // 涂抹预览：把蒙版按显示比例叠加为红色半透明
-    const cvs = document.getElementById(CVS_ID)!.querySelector('canvas')!;
     ctx.save();
     ctx.globalAlpha = 0.45;
     ctx.drawImage(mask, 0, 0, cssW, cssH);
@@ -329,16 +347,8 @@ async function confirm() {
         <text class="mode-btn" :class="{ on: mode === 'paint' }" hover-class="press-dim" @tap="setMode('paint')">✎ 涂抹选中</text>
       </view>
       <view :id="WRAP_ID" class="canvas-wrap">
-        <view :id="CVS_ID" class="cvs-host">
-          <canvas
-            class="edit-canvas"
-            disable-scroll
-            @touchstart="onTouchStart"
-            @touchmove.stop.prevent="onTouchMove"
-            @touchend="onTouchEnd"
-            @touchcancel="onTouchEnd"
-          />
-        </view>
+        <!-- canvas 由 JS 挂载原生元素（见 mountCanvas 注释），不用 uni canvas 组件 -->
+        <view :id="CVS_ID" class="cvs-host" />
       </view>
       <view class="hint-row">
         <text v-if="mode === 'crop'" class="hint">拖动角点调整选区，只识别框内内容</text>

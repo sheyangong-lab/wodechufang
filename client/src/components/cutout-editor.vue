@@ -5,7 +5,7 @@
  * - ✎ 涂抹抠图：手指涂抹主体，确认后涂过区域保留、其余透明，自动加白边贴纸（无需 AI）。
  */
 import { theme } from '@/styles/theme';
-import { ref, watch } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import { stickerFromMask } from '@/utils/sticker';
 
 const props = defineProps<{ visible: boolean; src: string }>();
@@ -42,11 +42,13 @@ watch(
     if (v) {
       mode.value = 'box';
       busy.value = false;
-      // 等待遮罩层完成布局后再测量，避免拿到中间态宽度导致画布过小
       init().catch(() => emit('cancel'));
+    } else {
+      destroyCanvas();
     }
   }
 );
+onUnmounted(destroyCanvas);
 
 function nextFrame(): Promise<void> {
   return new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
@@ -61,17 +63,40 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+/**
+ * 用 JS 手挂的原生 <canvas>，不用 uni 的 canvas 组件：
+ * uni h5 端会在自己的生命周期里把 backing 重置为 min(dpr,2)×CSS 尺寸，
+ * 覆盖我们按 devicePixelRatio 设置的 backing——高 DPR 手机上可见内容
+ * 只剩绘制区左上角（"上传图片只显示左上角一点点"的根因）。
+ * 原生元素完全自控 backing，无人会重置。
+ */
+let boundCvs: HTMLCanvasElement | null = null;
+
 function canvasEl(): HTMLCanvasElement | null {
-  return document.getElementById(CVS_ID)?.querySelector('canvas') || null;
+  return boundCvs;
+}
+
+function mountCanvas(): HTMLCanvasElement {
+  destroyCanvas();
+  const cvs = document.createElement('canvas');
+  cvs.style.touchAction = 'none';
+  cvs.style.display = 'block';
+  cvs.addEventListener('touchstart', onTouchStart as EventListener, { passive: true });
+  cvs.addEventListener('touchmove', onTouchMove as EventListener, { passive: false });
+  cvs.addEventListener('touchend', onTouchEnd as EventListener);
+  cvs.addEventListener('touchcancel', onTouchEnd as EventListener);
+  document.getElementById(CVS_ID)?.appendChild(cvs);
+  boundCvs = cvs;
+  return cvs;
+}
+
+function destroyCanvas() {
+  if (!boundCvs) return;
+  boundCvs.remove();
+  boundCvs = null;
 }
 
 async function init() {
-  for (let i = 0; i < 10; i++) {
-    await nextFrame();
-    if (document.getElementById(CVS_ID)?.querySelector('canvas')) break;
-  }
-  const cvs = canvasEl();
-  if (!cvs) throw new Error('画布未就绪');
   try {
     img = await loadImage(props.src);
   } catch {
@@ -85,6 +110,7 @@ async function init() {
   const s = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
   cssW = Math.round(img.naturalWidth * s);
   cssH = Math.round(img.naturalHeight * s);
+  const cvs = mountCanvas();
   cvs.width = Math.round(cssW * DPR);
   cvs.height = Math.round(cssH * DPR);
   cvs.style.width = cssW + 'px';
@@ -342,16 +368,8 @@ async function confirm() {
         <text class="mode-btn" :class="{ on: mode === 'paint' }" hover-class="press-dim" @tap="setMode('paint')">✎ 涂抹抠图</text>
       </view>
       <view :id="WRAP_ID" class="canvas-wrap">
-        <view :id="CVS_ID" class="cvs-host">
-          <canvas
-            class="edit-canvas"
-            disable-scroll
-            @touchstart="onTouchStart"
-            @touchmove.stop.prevent="onTouchMove"
-            @touchend="onTouchEnd"
-            @touchcancel="onTouchEnd"
-          />
-        </view>
+        <!-- canvas 由 JS 挂载原生元素（见 mountCanvas 注释），不用 uni canvas 组件 -->
+        <view :id="CVS_ID" class="cvs-host" />
       </view>
       <view class="hint-row">
         <text v-if="mode === 'auto'" class="hint">自动识别主体并去除背景</text>
