@@ -272,7 +272,7 @@ function onLogout() {
       :visible="serverDialogVisible"
       title="服务器设置"
       :default-value="getApiBase()"
-      placeholder="http://IP:8080"
+      placeholder="https://你的域名 或 http://192.168.x.x:8080"
       :maxlength="100"
       :show-test="true"
       :test-result="testResult"

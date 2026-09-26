@@ -1,0 +1,7 @@
+# 构建上下文瘦身（构建上下文曾达 280MB）
+target
+data
+.git
+Dockerfile
+.dockerignore
+.env

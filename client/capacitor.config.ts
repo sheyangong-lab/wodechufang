@@ -5,16 +5,18 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * .json 会被静默忽略——曾因此导致 CapacitorHttp/androidScheme 失效、APK 全部
  * 请求被 mixed content 拦截，故删除 .json 只保留此文件）。
  *
- * - androidScheme: 'http' 使页面 origin 为 http://localhost，与 http 后端同源，
- *   避免 WebView mixed content 拦截（https 页面禁发 http 请求）。
- * - CapacitorHttp 把 XHR/fetch 转发到原生层执行，绕过 WebView 网络限制。
+ * - androidScheme: 'https'（2026-09 起）：后端公网部署走 Caddy 自动 HTTPS，
+ *   明文 http 时代结束。https origin 下 WebView 允许发 https 请求，与后端
+ *   https://域名 同为 https，无 mixed content 问题。注意 https origin 下
+ *   localStorage 的 key 不变（scheme 不影响 origin 里的 localhost 部分）。
+ * - CapacitorHttp 把 XHR/fetch 转发到原生层执行（文件上传仍走页面内 fetch）。
  */
 const config: CapacitorConfig = {
   appId: 'com.syg.sharedkitchen',
   appName: '共享厨房',
   webDir: 'dist/build/h5',
   server: {
-    androidScheme: 'http',
+    androidScheme: 'https',
   },
   plugins: {
     CapacitorHttp: {

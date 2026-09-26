@@ -1,0 +1,26 @@
+# Caddy 反向代理：自动申请/续期 Let's Encrypt 证书，全站 HTTPS，HTTP 自动跳转
+# 域名来自 compose 的 DOMAIN 环境变量
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# 上传图片/更新包较大，放开体积与超时
+	request_body {
+		max_size 20MB
+	}
+
+	reverse_proxy server:8080 {
+		# Spring Boot 长连接（SSE 未用，保底）
+		flush_interval -1
+	}
+
+	header {
+		# 基础安全响应头
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		# 去掉服务端指纹
+		-Server
+	}
+}

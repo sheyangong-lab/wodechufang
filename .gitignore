@@ -28,3 +28,6 @@ test-results/
 # 秘密配置：.env 存 API Key，严禁提交
 .env
 server/.env
+
+# 部署密钥
+/.env

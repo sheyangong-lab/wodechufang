@@ -2,8 +2,12 @@
  * 服务器地址配置（全项目唯一入口）。
  * 支持运行时修改：App 内「我 → 服务器设置」或直接改 DEFAULT_API_BASE 后重新构建。
  * 优先级：用户设置（本地存储）> DEFAULT_API_BASE。
+ *
+ * 2026-09 公网 HTTPS 部署：默认指向正式域名（Caddy 自动 HTTPS，见 deploy/Caddyfile）。
+ * 局域网调试：服务器设置里填 http://192.168.x.x:8080（Android 明文仅对私有网段放行，
+ * 见 network_security_config.xml）。新装 App 首次启动即默认 https 域名。
  */
-export const DEFAULT_API_BASE = 'http://192.168.1.111:8080';
+export const DEFAULT_API_BASE = 'https://kitchen.example.com';
 
 const STORAGE_KEY = 'apiBase';
 
