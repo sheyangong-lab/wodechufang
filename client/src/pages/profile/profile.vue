@@ -142,8 +142,17 @@ function onTestServer(url: string) {
   testResult.value = '测试中…';
   const start = Date.now();
   fetch(url.replace(/\/+$/, '') + '/api/health')
-    .then((res) => res.json())
-    .then((data: Record<string, unknown>) => {
+    .then((res) => {
+      if (!res.ok) {
+        // 有 HTTP 响应但非 2xx：网络是通的，服务端/路径问题
+        testResult.value = `✗ HTTP ${res.status}`;
+        testing.value = false;
+        return null;
+      }
+      return res.json();
+    })
+    .then((data: Record<string, unknown> | null) => {
+      if (data === null) return;
       const ms = Date.now() - start;
       if (data.code === 0) {
         testResult.value = `✓ 连通 · ${ms}ms`;
@@ -151,7 +160,16 @@ function onTestServer(url: string) {
         testResult.value = `✗ 响应异常`;
       }
     })
-    .catch(() => (testResult.value = '✗ 无法连接'))
+    .catch((err: unknown) => {
+      // 透出具体原因：证书校验失败 / 超时 / 其他，便于远程定位
+      const msg = err instanceof Error ? err.message : String(err);
+      const short = /certificate|SSL|TLS/i.test(msg)
+        ? '✗ 证书校验失败'
+        : /timeout/i.test(msg)
+          ? '✗ 连接超时'
+          : `✗ 无法连接 (${msg.slice(0, 40)})`;
+      testResult.value = short;
+    })
     .finally(() => (testing.value = false));
 }
 
