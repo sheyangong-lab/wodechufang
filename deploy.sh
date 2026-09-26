@@ -8,6 +8,8 @@
 #   ./deploy.sh 123.45.67.89                   # 首次部署（IP 模式，自签证书，配合
 #                                              #   Lucky 等端口映射：映射 TCP 443 到本机 443）
 #   ./deploy.sh kitchen.example.com --with-db  # 首次部署并用 Postgres（默认 SQLite）
+#   ./deploy.sh 192.168.3.78 --port 10123      # IP 模式 + 自定义 HTTPS 端口
+#                                              #   （Lucky/路由把外部该端口转发到本机）
 #   ./deploy.sh kitchen.example.com --lucky /path/to/certs
 #                                              # Lucky 证书模式：加载 Lucky 映射出来的
 #                                              #   ACME 证书（域名.crt/域名.key），续期自动热加载
@@ -35,6 +37,8 @@ UPGRADE=false
 IP_MODE=false
 LUCKY_DIR=""
 LUCKY_NEXT=false
+HTTPS_PORT=443
+PORT_NEXT=false
 
 say()  { printf '\n\033[1;33m==> %s\033[0m\n' "$*"; }
 ok()   { printf '\033[1;32m  ✓ %s\033[0m\n' "$*"; }
@@ -45,12 +49,15 @@ for arg in "$@"; do
   case "$arg" in
     --with-db) WITH_DB=true ;;
     --lucky) LUCKY_NEXT=true ; continue ;;
+    --port) PORT_NEXT=true ; continue ;;
     --help|-h) grep '^#   ' "$0" | sed 's/^#   //'; exit 0 ;;
     http*) DOMAIN="$arg" ;;
     "") ;;
     *)
       if [ "${LUCKY_NEXT:-}" = "true" ] && [ -z "$LUCKY_DIR" ]; then
         LUCKY_DIR="$arg"; LUCKY_NEXT=false
+      elif [ "${PORT_NEXT:-}" = "true" ]; then
+        HTTPS_PORT="$arg"; PORT_NEXT=false
       else
         [ -z "$DOMAIN" ] && DOMAIN="$arg" || die "多余参数: $arg"
       fi ;;
@@ -164,6 +171,25 @@ fi
 
 docker compose build "${BUILD_ARGS[@]}" server
 say "启动服务"
+if [ "$HTTPS_PORT" != "443" ]; then
+  python3 - "$HTTPS_PORT" <<'PYPORT'
+import sys
+port = sys.argv[1]
+p = 'docker-compose.yml'
+s = open(p, encoding='utf-8').read()
+old = '      - "80:80"     # ACME HTTP-01 挑战 + 跳转 HTTPS\n      - "443:443"'
+new = '      - "%s:443"   # HTTPS 主入口（外部端口转发到本机该端口）' % port
+if old in s:
+    s = s.replace(old, new, 1)
+elif ':%s:443' % port not in s:
+    import re
+    s2 = re.sub(r'      - "\d+:443".*\n', '      - "%s:443"   # HTTPS 主入口\n' % port, s, count=1)
+    assert s2 != s, 'no port line matched'
+    s = s2
+open(p, 'w', encoding='utf-8').write(s)
+print('HTTPS 端口 -> %s' % port)
+PYPORT
+fi
 if [ -n "$LUCKY_DIR" ]; then
   # 把证书目录挂进 caddy 容器 /certs
   python3 - <<'PYIN2'
@@ -208,7 +234,9 @@ if curl -sk --noproxy '*' "https://127.0.0.1/api/health" -H "Host: $DOMAIN" | gr
 fi
 
 echo
-ok "部署完成:  https://$DOMAIN"
+SUFFIX=""
+[ "$HTTPS_PORT" != "443" ] && SUFFIX=":$HTTPS_PORT"
+ok "部署完成:  https://$DOMAIN$SUFFIX"
 if [ -n "$LUCKY_DIR" ]; then
   echo "    ── Lucky 证书模式 ──"
   echo "    Lucky: SSL证书模块对该证书启用映射→目录指向 $LUCKY_DIR（每天凌晨自动续期）"
@@ -221,7 +249,7 @@ elif $IP_MODE; then
   echo "    手机上: 设置→安全→安装证书→CA证书 装入该文件即可静默信任"
   echo "    （不装CA也行: App内浏览器首次访问会提示不安全,功能不受影响）"
 fi
-echo "    App 端:   「我 → 服务器设置」填 https://$DOMAIN"
-echo "    管理后台: https://$DOMAIN/admin/"
+echo "    App 端:   「我 → 服务器设置」填 https://$DOMAIN$SUFFIX"
+echo "    管理后台: https://$DOMAIN$SUFFIX/admin/"
 echo "    日志:     docker compose logs -f server"
 echo "    升级:     git pull && ./deploy.sh"
