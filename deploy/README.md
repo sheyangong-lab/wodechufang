@@ -1,5 +1,19 @@
 # 公网部署指南（Docker + 自动 HTTPS）
 
+## 快速开始（一键脚本，推荐）
+
+```bash
+git clone https://github.com/sheyangong-lab/wodechufang.git && cd wodechufang
+chmod +x deploy.sh
+./deploy.sh kitchen.example.com            # 首次部署（域名必填）
+./deploy.sh kitchen.example.com --with-db  # 首次部署 + Postgres
+./deploy.sh                                # 之后升级（git pull 后重跑）
+```
+
+脚本自动完成：生成 .env（含随机 JWT_SECRET）→ 经国内镜像拉取全部基础镜像 →
+构建（Maven 走阿里云源）→ 启动 → 健康检查 → 输出访问地址。
+以下手动步骤供理解原理或故障排查。
+
 ## 0. 前置条件
 
 - 一台公网服务器（2C4G 起步即可），已装 Docker + Docker Compose

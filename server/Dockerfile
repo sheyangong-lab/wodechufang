@@ -1,10 +1,12 @@
 # ---- 构建阶段：Maven + JDK21 ----
 # 国内拉不动 docker.io 时：先用 compose 同目录的命令打 tag（见 deploy/README.md）
 FROM maven:3.9-eclipse-temurin-21 AS build
+# 国内构建传 --build-arg MAVEN_MIRROR=... 覆盖；海外可不传
+ARG MAVEN_MIRROR=https://maven.aliyun.com/repository/public
 WORKDIR /src
 COPY pom.xml .
-# 先拉依赖（利用 Docker 层缓存，源码变更不重下依赖）；Maven 走阿里云镜像加速
-RUN mkdir -p /root/.m2 && printf '<settings><mirrors><mirror><id>aliyun</id><mirrorOf>central</mirrorOf><url>https://maven.aliyun.com/repository/public</url></mirror></mirrors></settings>' > /root/.m2/settings.xml \
+# 先拉依赖（利用 Docker 层缓存，源码变更不重下依赖）；Maven 走指定镜像加速
+RUN mkdir -p /root/.m2 && printf '<settings><mirrors><mirror><id>mirror</id><mirrorOf>central</mirrorOf><url>%s</url></mirror></mirrors></settings>' "$MAVEN_MIRROR" > /root/.m2/settings.xml \
     && mvn -q dependency:go-offline
 COPY src ./src
 RUN mvn -q package -DskipTests
