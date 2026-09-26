@@ -7,7 +7,7 @@
  * 局域网调试：服务器设置里填 http://192.168.x.x:8080（Android 明文仅对私有网段放行，
  * 见 network_security_config.xml）。新装 App 首次启动即默认 https 域名。
  */
-export const DEFAULT_API_BASE = 'https://kitchen.example.com';
+export const DEFAULT_API_BASE = 'https://cf.sygfrp.sbs:10123';
 
 const STORAGE_KEY = 'apiBase';
 
@@ -22,11 +22,13 @@ export function getApiBase(): string {
   return DEFAULT_API_BASE;
 }
 
-/** 保存用户自定义服务器地址（空值恢复默认） */
+/** 保存用户自定义服务器地址（空值恢复默认；没写协议头自动补 https://，避免静默失效） */
 export function setApiBase(url: string | null) {
   if (!url || !url.trim()) {
     uni.removeStorageSync(STORAGE_KEY);
     return;
   }
-  uni.setStorageSync(STORAGE_KEY, url.trim().replace(/\/+$/, ''));
+  let v = url.trim().replace(/\/+$/, '');
+  if (!/^https?:\/\//.test(v)) v = 'https://' + v;
+  uni.setStorageSync(STORAGE_KEY, v);
 }
