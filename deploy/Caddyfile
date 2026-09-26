@@ -1,10 +1,10 @@
-# Caddy 反向代理 —— 两种模式（由 compose 的 DOMAIN 环境变量决定）：
+# Caddy 反向代理 —— 站点骨架（三种模式的 tls 段由 deploy.sh 生成到 /config/Caddyfile.overlay）
 #
-# 1. 有域名：自动申请 Let's Encrypt 证书（DOMAIN=kitchen.example.com）
-# 2. 无域名（IP 直连/Lucky 端口映射）：DOMAIN=IP 时 Caddy 自动走本地自签 CA
-#    （非公网地址无法签发 ACME 证书，Caddy 对 IP/内网主机名自动降级为 internal CA），
-#    依然是加密传输；App 端装一次自签根证书即可静默信任（deploy.sh 结尾会输出导出命令）。
-#    HTTP 自动跳转 HTTPS。
+# 模式说明见 deploy/README.md：
+# 1. 域名模式   → 自动 Let's Encrypt（默认，无需 overlay）
+# 2. IP 模式    → Caddy 自动 internal 自签（DOMAIN=IP，无需 overlay）
+# 3. Lucky 证书 → deploy.sh 检测到 LUCKY_CERT_DIR 时在站点块里注入 tls 段：
+#    tls /certs/域名.crt /certs/域名.key
 #
 # {$DOMAIN::443} 取环境变量；:443 兜底=任意 Host 都匹配。
 

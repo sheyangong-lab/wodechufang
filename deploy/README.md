@@ -101,6 +101,26 @@ ssh server 'docker cp /tmp/app-debug.apk $(docker compose ps -q server):/app/dat
 
 App 内「我 → 检查更新」即可拉到新包（HTTPS 下载，防中间人替换 APK）。
 
+## 7.4 Lucky 证书模式（自动从 Lucky 拉 ACME 证书）
+
+如果你已经在 Lucky 上配好了 ACME 自动证书（它每天凌晨 5:06 自动检测续期），
+可以让部署直接复用 Lucky 的证书，Caddy 不再自己申请：
+
+**Lucky 侧**：SSL 证书模块 → 你的证书 → 底部启用**映射** → 目标目录选一个
+部署机能访问的目录（如 `/mnt/lucky-certs`），Lucky 会把证书文件写成
+`域名.pem`/`域名.key`（或 .crt/.key，以实际为准）。
+
+**部署机**：
+
+```bash
+./deploy.sh kitchen.example.com --lucky /mnt/lucky-certs
+```
+
+脚本会校验证书/私钥文件存在（`域名.crt` 或 `域名.pem`）、拷入项目
+`deploy/lucky-certs/`（gitignore）、注入 Caddy `tls` 手动证书段并挂载进容器。
+Caddy 监听证书文件变化——**Lucky 每天续期后自动热加载，无需重启任何东西**。
+文件名对不上时按报错提示核对映射目录里的实际文件名即可。
+
 ## 7.5 无域名部署（IP + Lucky 端口映射）
 
 不绑域名时 Caddy 用**自签证书**（加密强度相同，只是证书签发者不是公共 CA）：
