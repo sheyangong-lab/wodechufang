@@ -1,15 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  2026-09 公网 HTTPS 部署起收紧：默认禁明文。
-  仅对私有网段放行明文，兼容局域网自建后端（http://192.168.x.x）调试。
+  2026-09 公网 HTTPS 部署：默认禁明文，信任三类证书：
+  1. system    —— 公网 Let's Encrypt 等公共 CA（域名部署）
+  2. user      —— 用户手动安装的 CA（自部署自签场景）
+  3. @raw/sharedkitchen_root —— 打包进 APK 的部署机自签 CA
+     （Caddy tls internal 的 Local CA；服务器重装/换机会生成新 CA，
+       需重新导出并更新本文件随新 APK 发布）
+  私有网段另行放行明文，兼容局域网 http://192.168.x.x 调试。
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
-            <!-- system=公网 Let's Encrypt 等公共CA；
-                 user=Caddy tls internal 自签 CA（用户通过系统设置安装后生效）-->
             <certificates src="system" />
             <certificates src="user" />
+            <certificates src="@raw/sharedkitchen_root" />
         </trust-anchors>
     </base-config>
     <domain-config cleartextTrafficPermitted="true">
