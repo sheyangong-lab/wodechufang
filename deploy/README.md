@@ -101,6 +101,28 @@ ssh server 'docker cp /tmp/app-debug.apk $(docker compose ps -q server):/app/dat
 
 App 内「我 → 检查更新」即可拉到新包（HTTPS 下载，防中间人替换 APK）。
 
+## 7.5 无域名部署（IP + Lucky 端口映射）
+
+不绑域名时 Caddy 用**自签证书**（加密强度相同，只是证书签发者不是公共 CA）：
+
+```bash
+./deploy.sh 你的服务器公网IP        # 例如 ./deploy.sh 203.0.113.10
+```
+
+Lucky 配置：把外部端口（如 8443）的 TCP 转发到部署机 443，App 里填
+`https://公网IP:外部端口`。
+
+手机信任自签证书（可选但推荐，免掉"不安全"警告、App 静默可用）：
+
+```bash
+# 部署机导出自签根证书（脚本结束时也会打印这条命令）
+docker compose exec caddy cat /data/caddy/pki/authorities/local/root.crt > sharedkitchen-root.crt
+# 传到手机 → 设置 → 安全 → 更多安全设置 → 加密与凭据 → 安装证书 → CA 证书
+```
+
+注意：TEST-NET 段（203.0.113.x 等）仅文档示例；ACME 无法给纯 IP 签公共证书，
+所以 IP 模式只能自签，这是 CA 行业规则不是工具限制。
+
 ## 8. 客户端
 
 - App 版本 ≥ **1.3.2** 起默认走 `https://域名`（见 `client/src/api/config.ts` 的 DEFAULT_API_BASE，**部署前改成你的真实域名再出包**）

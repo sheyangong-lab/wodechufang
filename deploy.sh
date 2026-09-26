@@ -4,7 +4,9 @@
 #
 # 用法（在服务器上、项目根目录执行）：
 #   chmod +x deploy.sh
-#   ./deploy.sh kitchen.example.com            # 首次部署（域名作唯一必填参数）
+#   ./deploy.sh kitchen.example.com            # 首次部署（域名模式，Let's Encrypt 证书）
+#   ./deploy.sh 123.45.67.89                   # 首次部署（IP 模式，自签证书，配合
+#                                              #   Lucky 等端口映射：映射 TCP 443 到本机 443）
 #   ./deploy.sh kitchen.example.com --with-db  # 首次部署并用 Postgres（默认 SQLite）
 #   ./deploy.sh                                # 升级（git pull + 重建 + 平滑重启）
 #
@@ -27,6 +29,7 @@ IMAGES=(
 DOMAIN=""
 WITH_DB=false
 UPGRADE=false
+IP_MODE=false
 
 say()  { printf '\n\033[1;33m==> %s\033[0m\n' "$*"; }
 ok()   { printf '\033[1;32m  ✓ %s\033[0m\n' "$*"; }
@@ -52,7 +55,13 @@ if [ -z "$DOMAIN" ] && [ -f .env ]; then
   DOMAIN=$(grep -E '^DOMAIN=' .env | cut -d= -f2-)
   say "升级模式：沿用 .env 中的 DOMAIN=$DOMAIN"
 else
-  [ -z "$DOMAIN" ] && die "用法: ./deploy.sh <域名> [--with-db]   （无参数且无 .env 时视为升级）"
+  [ -z "$DOMAIN" ] && die "用法: ./deploy.sh <域名|服务器公网IP> [--with-db]   （无参数且无 .env 时视为升级）"
+fi
+
+# IP 模式：不绑域名，自签证书（配合 Lucky 等端口映射）
+if [[ "$DOMAIN" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  IP_MODE=true
+  say "IP 模式：$DOMAIN（自签证书，Caddy tls internal；App 端需按提示安装CA或接受自签）"
 fi
 
 # ---------------- .env 生成 / 校验 ----------------
@@ -69,7 +78,11 @@ DB_USER=sharedkitchen
 DB_PASSWORD=
 EOF
   chmod 600 .env
-  ok ".env 已生成（GLM_API_KEY 留空，需要票据识别时编辑 .env 后重新部署）"
+  if $IP_MODE; then
+    ok ".env 已生成（IP 模式：Lucky 里把外部端口映射到本机 TCP 443 即可）"
+  else
+    ok ".env 已生成（GLM_API_KEY 留空，需要票据识别时编辑 .env 后重新部署）"
+  fi
 else
   grep -qE '^DOMAIN=.' .env || die ".env 缺 DOMAIN"
   grep -qE '^JWT_SECRET=.{30,}' .env || die ".env 的 JWT_SECRET 为空或太短（openssl rand -base64 48）"
@@ -131,13 +144,20 @@ for i in $(seq 1 60); do
 done
 
 say "验证 HTTPS 入口"
-sleep 5   # 给 Caddy 签证书的时间
+$IP_MODE || sleep 8   # 域名模式给 ACME 挑战留时间
 if curl -sk --noproxy '*' "https://127.0.0.1/api/health" -H "Host: $DOMAIN" | grep -q '"status":"UP"'; then
   ok "HTTPS 反代 UP"
 fi
 
 echo
 ok "部署完成:  https://$DOMAIN"
+if $IP_MODE; then
+  echo "    ── IP 模式（自签证书）──"
+  echo "    Lucky: 把外部端口(如 8443)映射到本机 TCP 443；App 填 https://$DOMAIN:外部端口"
+  echo "    自签CA导出(推荐,免警告): docker compose exec caddy cat /data/caddy/pki/authorities/local/root.crt > sharedkitchen-root.crt"
+  echo "    手机上: 设置→安全→安装证书→CA证书 装入该文件即可静默信任"
+  echo "    （不装CA也行: App内浏览器首次访问会提示不安全,功能不受影响）"
+fi
 echo "    App 端:   「我 → 服务器设置」填 https://$DOMAIN"
 echo "    管理后台: https://$DOMAIN/admin/"
 echo "    日志:     docker compose logs -f server"

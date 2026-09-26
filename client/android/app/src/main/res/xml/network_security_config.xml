@@ -6,7 +6,10 @@
 <network-security-config>
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
+            <!-- system=公网 Let's Encrypt 等公共CA；
+                 user=Caddy tls internal 自签 CA（用户通过系统设置安装后生效）-->
             <certificates src="system" />
+            <certificates src="user" />
         </trust-anchors>
     </base-config>
     <domain-config cleartextTrafficPermitted="true">

@@ -1,7 +1,14 @@
-# Caddy 反向代理：自动申请/续期 Let's Encrypt 证书，全站 HTTPS，HTTP 自动跳转
-# 域名来自 compose 的 DOMAIN 环境变量
+# Caddy 反向代理 —— 两种模式（由 compose 的 DOMAIN 环境变量决定）：
+#
+# 1. 有域名：自动申请 Let's Encrypt 证书（DOMAIN=kitchen.example.com）
+# 2. 无域名（IP 直连/Lucky 端口映射）：DOMAIN=IP 时 Caddy 自动走本地自签 CA
+#    （非公网地址无法签发 ACME 证书，Caddy 对 IP/内网主机名自动降级为 internal CA），
+#    依然是加密传输；App 端装一次自签根证书即可静默信任（deploy.sh 结尾会输出导出命令）。
+#    HTTP 自动跳转 HTTPS。
+#
+# {$DOMAIN::443} 取环境变量；:443 兜底=任意 Host 都匹配。
 
-{$DOMAIN} {
+{$DOMAIN::443} {
 	encode zstd gzip
 
 	# 上传图片/更新包较大，放开体积与超时
@@ -10,17 +17,14 @@
 	}
 
 	reverse_proxy server:8080 {
-		# Spring Boot 长连接（SSE 未用，保底）
 		flush_interval -1
 	}
 
 	header {
-		# 基础安全响应头
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
 		Referrer-Policy "no-referrer"
-		# 去掉服务端指纹
 		-Server
 	}
 }
