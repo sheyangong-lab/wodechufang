@@ -27,7 +27,7 @@ jwt:
 glm:
   # 账本 AI 识别（智谱开放平台 https://open.bigmodel.cn），Key 通过环境变量注入，未配置时识别接口报提示错误
   api-key: ${GLM_API_KEY:}
-  model: ${GLM_MODEL:glm-4.6v}
+  model: ${GLM_MODEL:glm-5.3-flash}
   base-url: ${GLM_BASE_URL:https://open.bigmodel.cn/api/coding/paas/v4}
   timeout-ms: 60000
 

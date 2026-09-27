@@ -33,7 +33,6 @@ function onCalPick(date: string | null) {
 const cards = computed(() => [
   { label: '收入', value: summary.value.income, color: theme.income },
   { label: '支出', value: summary.value.expense, color: theme.expense },
-  { label: '结余', value: summary.value.balance, color: theme.title },
 ]);
 
 const grouped = computed(() => {
@@ -362,7 +361,7 @@ function delEntry(e: LedgerEntryView) {
     <!-- 流水列表（按日分组） -->
     <view v-if="loading" class="loading-tip"><text>加载中…</text></view>
     <view v-for="([date, list]) in grouped" :key="date" class="day-group">
-      <text class="day-head">{{ date }}</text>
+      <text class="day-head">{{ Number(date.slice(5, 7)) }}月{{ Number(date.slice(8, 10)) }}日</text>
       <view
         v-for="e in list"
         :key="e.id"
