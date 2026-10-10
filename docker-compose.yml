@@ -17,13 +17,12 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     ports:
-      - "80:80"     # ACME HTTP-01 挑战 + 跳转 HTTPS
-      - "443:443"
+      - "${HTTPS_PORT:-443}:443"   # HTTPS 主入口（高位端口/端口映射场景在 .env 设 HTTPS_PORT）
     environment:
       # 部署时替换域名（.env 文件或 export DOMAIN=...）
       DOMAIN: ${DOMAIN:-example.com}
     volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/${CADDY_FILE:-Caddyfile}:/etc/caddy/Caddyfile:ro
       - caddy-data:/data    # 证书持久化
       - caddy-config:/config
     depends_on:
