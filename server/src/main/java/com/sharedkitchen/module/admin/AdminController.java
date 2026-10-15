@@ -20,10 +20,6 @@ public class AdminController {
 
     private final AdminService adminService;
 
-    public AdminController(AdminService adminService) {
-        this.adminService = adminService;
-    }
-
     public record LoginReq(@NotBlank String username, @NotBlank String password) {}
 
     public record BanReq(boolean ban) {}
@@ -66,6 +62,28 @@ public class AdminController {
     public ApiResponse<Void> setUserBan(@PathVariable Long id, @RequestBody BanReq req) {
         adminService.setUserBan(id, req.ban());
         return ApiResponse.ok();
+    }
+
+    // ----- 运行时设置（AI识别模型/Key、登录有效期、后台网段） -----
+
+    private final AppSettingService settingService;
+
+    public AdminController(AdminService adminService, AppSettingService settingService) {
+        this.adminService = adminService;
+        this.settingService = settingService;
+    }
+
+    @GetMapping("/settings")
+    public ApiResponse<Map<String, Object>> settings() {
+        return ApiResponse.ok(settingService.all());
+    }
+
+    public record SettingReq(@NotBlank String key, String value) {}
+
+    @PostMapping("/settings")
+    public ApiResponse<Map<String, Object>> saveSetting(@RequestBody @Validated SettingReq req) {
+        settingService.save(req.key(), req.value());
+        return ApiResponse.ok(settingService.all());
     }
 
 }

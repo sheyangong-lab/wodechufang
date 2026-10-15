@@ -12,9 +12,12 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebConfig implements WebMvcConfigurer {
 
     private final com.sharedkitchen.common.JwtService jwtService;
+    private final com.sharedkitchen.module.admin.AppSettingService appSettings;
 
-    public WebConfig(com.sharedkitchen.common.JwtService jwtService) {
+    public WebConfig(com.sharedkitchen.common.JwtService jwtService,
+                     com.sharedkitchen.module.admin.AppSettingService appSettings) {
         this.jwtService = jwtService;
+        this.appSettings = appSettings;
     }
 
     /** 上传图片与导出文件的静态映射：/files/** → data/uploads/，/files/exports/** → data/exports/。 */
@@ -70,7 +73,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Bean
     public FilterRegistrationBean<com.sharedkitchen.module.admin.AdminAuthFilter> adminAuthFilter() {
         FilterRegistrationBean<com.sharedkitchen.module.admin.AdminAuthFilter> registration =
-                new FilterRegistrationBean<>(new com.sharedkitchen.module.admin.AdminAuthFilter(jwtService));
+                new FilterRegistrationBean<>(new com.sharedkitchen.module.admin.AdminAuthFilter(jwtService, appSettings));
         registration.addUrlPatterns("/api/admin/*");
         registration.setOrder(5);
         return registration;

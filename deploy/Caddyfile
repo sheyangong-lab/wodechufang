@@ -16,6 +16,14 @@
 		max_size 20MB
 	}
 
+	# 管理后台仅内网可访问（与 AdminAuthFilter CIDR 闸门双保险）：
+	# 命中后台路径且来源不在内网段 → 直接断开
+	@public_admin {
+		path /admin/* /admin /api/admin/*
+		not client_ip 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.1
+	}
+	abort @public_admin
+
 	reverse_proxy server:8080 {
 		flush_interval -1
 	}

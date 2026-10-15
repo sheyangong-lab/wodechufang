@@ -6,6 +6,7 @@ import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import javax.crypto.SecretKey;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,12 +16,29 @@ import org.springframework.stereotype.Component;
 public class JwtService {
 
     private final SecretKey key;
-    private final Duration ttl;
+
+    private final long defaultTtlHours;
+    private final Object settingsProvider;
 
     public JwtService(@Value("${jwt.secret}") String secret,
-                      @Value("${jwt.ttl-hours:72}") long ttlHours) {
+                      @Value("${jwt.ttl-hours:72}") long ttlHours,
+                      org.springframework.context.ApplicationContext ctx) {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-        this.ttl = Duration.ofHours(ttlHours);
+        this.defaultTtlHours = ttlHours;
+        // 延迟取 AppSettingService（避免模块间构造循环依赖）
+        this.settingsProvider = ctx.getBeanProvider(com.sharedkitchen.module.admin.AppSettingService.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    private long ttlHours() {
+        try {
+            org.springframework.beans.factory.ObjectProvider<com.sharedkitchen.module.admin.AppSettingService> p =
+                    (org.springframework.beans.factory.ObjectProvider<com.sharedkitchen.module.admin.AppSettingService>) settingsProvider;
+            com.sharedkitchen.module.admin.AppSettingService s = p.getIfAvailable();
+            return s == null ? defaultTtlHours : s.getLong("jwt.ttl-hours", defaultTtlHours);
+        } catch (Exception e) {
+            return defaultTtlHours;
+        }
     }
 
     public String issue(Long userId) {
@@ -28,7 +46,7 @@ public class JwtService {
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .issuedAt(Date.from(now))
-                .expiration(Date.from(now.plus(ttl)))
+                .expiration(Date.from(now.plus(ttlHours(), ChronoUnit.HOURS)))
                 .signWith(key)
                 .compact();
     }
@@ -39,7 +57,7 @@ public class JwtService {
         return Jwts.builder()
                 .subject("admin:" + adminId)
                 .issuedAt(Date.from(now))
-                .expiration(Date.from(now.plus(ttl)))
+                .expiration(Date.from(now.plus(ttlHours(), ChronoUnit.HOURS)))
                 .signWith(key)
                 .compact();
     }

@@ -24,8 +24,9 @@ import java.util.Map;
 @Component
 public class GlmVisionClient {
 
-    private final String apiKey;
-    private final String model;
+    private final String envApiKey;
+    private final String envModel;
+    private final com.sharedkitchen.module.admin.AppSettingService settings;
     private final String baseUrl;
     private final long timeoutMs;
     private final ObjectMapper objectMapper;
@@ -33,19 +34,30 @@ public class GlmVisionClient {
 
     public GlmVisionClient(@Value("${glm.api-key:}") String apiKey,
                            @Value("${glm.model:glm-4.6v}") String model,
+                           com.sharedkitchen.module.admin.AppSettingService settings,
                            @Value("${glm.base-url:https://open.bigmodel.cn/api/paas/v4}") String baseUrl,
                            @Value("${glm.timeout-ms:60000}") long timeoutMs,
                            ObjectMapper objectMapper) {
-        this.apiKey = apiKey == null ? "" : apiKey.trim();
-        this.model = model;
+        this.envApiKey = apiKey == null ? "" : apiKey.trim();
+        this.envModel = model;
+        this.settings = settings;
         this.baseUrl = baseUrl.replaceAll("/+$", "");
         this.timeoutMs = timeoutMs;
         this.objectMapper = objectMapper;
         this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     }
 
+    /** 运行时配置优先（后台设置页可改），环境变量兜底。 */
+    private String apiKey() {
+        return settings.get("glm.api-key", envApiKey);
+    }
+
+    private String model() {
+        return settings.get("glm.model", envModel);
+    }
+
     public boolean enabled() {
-        return !apiKey.isEmpty();
+        return !apiKey().isEmpty();
     }
 
     /**
@@ -56,7 +68,7 @@ public class GlmVisionClient {
      */
     public String chat(String prompt, String imageBase64, String mimeType) {
         if (!enabled()) {
-            throw new BusinessException("未配置 GLM API Key（服务端环境变量 GLM_API_KEY）");
+            throw new BusinessException("未配置 GLM API Key（后台设置页或环境变量 GLM_API_KEY）");
         }
         Map<String, Object> imageUrl = new LinkedHashMap<>();
         imageUrl.put("url", "data:" + mimeType + ";base64," + imageBase64);
@@ -72,7 +84,7 @@ public class GlmVisionClient {
         userMessage.put("content", List.of(imagePart, textPart));
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", model);
+        body.put("model", model());
         body.put("messages", List.of(userMessage));
         body.put("temperature", 0.1);
         // 账本识别是简单抽取任务，关闭深度思考：实测 11~16s → 3s 内
@@ -89,7 +101,7 @@ public class GlmVisionClient {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + "/chat/completions"))
                 .timeout(Duration.ofMillis(timeoutMs))
-                .header("Authorization", "Bearer " + apiKey)
+                .header("Authorization", "Bearer " + apiKey())
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
