@@ -142,6 +142,33 @@ public class LedgerService {
         ledgerRepository.delete(e);
     }
 
+    /** 修改流水：类型/分类/金额/日期/备注/分项可改；kitchenId 取自原条目（防越权改别家）。 */
+    @Transactional
+    public LedgerEntryView updateManual(Long userId, Long entryId, ManualEntryReq req) {
+        LedgerEntry e = ledgerRepository.findById(entryId)
+                .orElseThrow(() -> new BusinessException(404, "流水不存在"));
+        requireMember(e.getKitchenId(), userId);
+        if (!LedgerEntry.TYPE_INCOME.equals(req.type())
+                && !LedgerEntry.TYPE_EXPENSE.equals(req.type())) {
+            throw new BusinessException("类型只能是收入或支出");
+        }
+        validCategory(e.getKitchenId(), req.type(), req.category());
+        if (req.amountFen() == null || req.amountFen() <= 0) {
+            throw new BusinessException("金额必须大于 0");
+        }
+        List<SubItemView> subItems = validSubItems(req.subItems(), req.amountFen());
+        e.setType(req.type());
+        e.setCategory(req.category() == null || req.category().isBlank() ? "其他" : req.category().trim());
+        e.setAmountFen(req.amountFen());
+        e.setSubItems(toSubItemsJson(subItems));
+        if (req.date() != null && !req.date().isBlank()) {
+            e.setDineDate(validDate(req.date()));
+        }
+        e.setRemark(req.remark() == null ? "" : req.remark().trim());
+        ledgerRepository.save(e);
+        return toView(e);
+    }
+
     /**
      * AI 识别小票/账单：图片直接转发 GLM-4.6V（base64 内联），返回识别出的分项与金额。
      * 图片仅在内存中转换，不落盘存储。

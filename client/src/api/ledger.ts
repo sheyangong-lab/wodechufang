@@ -62,6 +62,23 @@ export const ledgerApi = {
     }),
   remove: (kitchenId: number, id: number) =>
     request<void>({ url: `/api/kitchens/${kitchenId}/ledger/entries/${id}`, method: 'DELETE' }),
+  update: (
+    kitchenId: number,
+    id: number,
+    data: {
+      type: 'INCOME' | 'EXPENSE';
+      category: string;
+      amountFen: number;
+      date?: string;
+      remark?: string;
+      subItems?: LedgerSubItem[];
+    }
+  ) =>
+    request<LedgerEntryView>({
+      url: `/api/kitchens/${kitchenId}/ledger/entries/${id}`,
+      method: 'PUT',
+      data,
+    }),
   summary: (kitchenId: number, month: string) =>
     request<MonthSummary>({ url: `/api/kitchens/${kitchenId}/ledger/summary?month=${month}` }),
   /** 分类列表（厨房首次使用时服务端自动补默认分类） */

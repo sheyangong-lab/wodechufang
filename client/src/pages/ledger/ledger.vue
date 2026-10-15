@@ -283,9 +283,8 @@ function hasSubItems(e: LedgerEntryView) {
 }
 
 function onEntryTap(e: LedgerEntryView) {
-  if (hasSubItems(e)) {
-    expanded.value = { ...expanded.value, [e.id]: !expanded.value[e.id] };
-  }
+  // 点击流水 → 进入编辑（修改金额/分类/日期/备注）
+  uni.navigateTo({ url: `/pages/ledger/add?id=${e.id}` });
 }
 
 function delEntry(e: LedgerEntryView) {
@@ -386,7 +385,7 @@ function delEntry(e: LedgerEntryView) {
             <text class="entry-amount" :class="e.type === 'EXPENSE' ? 'out' : 'in'">
               {{ e.type === 'EXPENSE' ? '−' : '+' }}¥{{ (e.amountFen / 100).toFixed(2) }}
             </text>
-            <text v-if="hasSubItems(e)" class="expand-arrow" :class="{ open: expanded[e.id] }">▸</text>
+            <text v-if="hasSubItems(e)" class="expand-arrow" :class="{ open: expanded[e.id] }" @tap.stop="expanded = { ...expanded, [e.id]: !expanded[e.id] }">▸</text>
           </view>
         </view>
         <!-- 展开的分费用明细 -->

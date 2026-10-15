@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { theme } from '@/styles/theme';
 import { ledgerApi, groupCategories } from '@/api/ledger';
-import type { LedgerCategoryView } from '@/api/ledger';
+import type { LedgerCategoryView, LedgerEntryView } from '@/api/ledger';
 import { yuanToFen } from '@/api/dish';
 import { getApiBase } from '@/api/config';
 import { ensureKitchenId, getCurrentKitchenId } from '@/api/kitchen';
@@ -25,17 +25,55 @@ const groups = ref<{ expense: LedgerCategoryView[]; income: LedgerCategoryView[]
   income: [],
 });
 const submitting = ref(false);
+/** 编辑模式：URL 带 id 时为修改既有流水（否则新增） */
+const editId = ref<number | null>(null);
 
 onLoad(async (query) => {
   kitchenId.value = await ensureKitchenId();
-  if (query && query.month) {
+  if (query && query.id) {
+    editId.value = Number(query.id);
+    uni.setNavigationBarTitle({ title: '修改账目' });
+  } else if (query && query.month) {
     // 从指定月进入：当月则默认今天；历史月默认该月1号（此前用"该月+今天日号"
     // 会拼出 2026-06-28 这类"看起来像今天其实不是"的日期，还可能拼出 02-31 非法日期）
     date.value = query.month === monthStr() ? todayStr() : `${query.month}-01`;
   }
   await loadCategories();
+  if (editId.value) await loadEntry();
   if (!category.value) category.value = defaultCategory();
 });
+
+/** 编辑模式：拉取条目回填表单（带 entry= 参数直接透传，免一次请求） */
+async function loadEntry() {
+  const fromQuery = getCurrentPages().slice(-1)[0] as { options?: Record<string, string> } | undefined;
+  void fromQuery;
+  try {
+    if (!kitchenId.value || editId.value === null) return;
+    const list = await ledgerApi.list(kitchenId.value, date.value.slice(0, 7));
+    const e = (list as LedgerEntryView[]).find((x) => x.id === editId.value);
+    if (!e) {
+      // 可能跨月：按条目自身日期再拉一次
+      const all = await ledgerApi.list(kitchenId.value, '');
+      const e2 = (all as LedgerEntryView[]).find((x) => x.id === editId.value);
+      if (!e2) return;
+      fillForm(e2);
+      return;
+    }
+    fillForm(e);
+  } catch {
+    // toast 已统一弹出
+  }
+}
+
+function fillForm(e: LedgerEntryView) {
+  type.value = e.type === 'INCOME' ? 'INCOME' : 'EXPENSE';
+  category.value = e.category;
+  date.value = e.date;
+  remark.value = e.remark || '';
+  subRows.value = (e.subItems && e.subItems.length
+    ? e.subItems.map((s) => ({ name: s.name, amount: (s.amountFen / 100).toFixed(2) }))
+    : [{ name: e.category, amount: (e.amountFen / 100).toFixed(2) }]);
+}
 
 async function loadCategories() {
   if (!kitchenId.value) return;
@@ -272,17 +310,20 @@ function submit() {
     return;
   }
   submitting.value = true;
-  ledgerApi
-    .add(kitchenId.value, {
-      type: type.value,
-      category: category.value,
-      amountFen: fen,
-      date: date.value,
-      remark: remark.value || undefined,
-      subItems,
-    })
+  const payload = {
+    type: type.value,
+    category: category.value,
+    amountFen: fen,
+    date: date.value,
+    remark: remark.value || undefined,
+    subItems,
+  };
+  const req = editId.value
+    ? ledgerApi.update(kitchenId.value, editId.value, payload)
+    : ledgerApi.add(kitchenId.value, payload);
+  req
     .then(() => {
-      uni.showToast({ title: '已记一笔', icon: 'none' });
+      uni.showToast({ title: editId.value ? '已修改' : '已记一笔', icon: 'none' });
       setTimeout(() => uni.navigateBack(), 700);
     })
     .finally(() => (submitting.value = false));

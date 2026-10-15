@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -42,6 +43,16 @@ public class LedgerController {
             @RequestBody @Validated ManualEntryReq req) {
         Long userId = userId(request);
         return ApiResponse.ok(ledgerService.addManual(userId, kitchenId,
+                new LedgerService.ManualEntryReq(req.type(), req.category(),
+                        req.amountFen(), req.date(), req.remark(), req.subItems())));
+    }
+
+    @PutMapping("/entries/{id}")
+    public ApiResponse<LedgerService.LedgerEntryView> update(
+            HttpServletRequest request, @PathVariable Long kitchenId, @PathVariable Long id,
+            @RequestBody @Validated ManualEntryReq req) {
+        Long userId = userId(request);
+        return ApiResponse.ok(ledgerService.updateManual(userId, id,
                 new LedgerService.ManualEntryReq(req.type(), req.category(),
                         req.amountFen(), req.date(), req.remark(), req.subItems())));
     }
