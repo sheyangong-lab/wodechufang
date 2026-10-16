@@ -126,6 +126,34 @@ const serverDialogVisible = ref(false);
 const testResult = ref('');
 const testing = ref(false);
 
+function toggleAutoRecord() {
+  // #ifdef H5
+  const cap = (globalThis as Record<string, any>).Capacitor;
+  const plugin = cap?.Plugins?.AutoRecord;
+  if (!plugin) {
+    uni.showToast({ title: '仅安卓 App 支持悬浮球记账', icon: 'none' });
+    return;
+  }
+  const KEY = 'autoRecordOn';
+  const on = !uni.getStorageSync(KEY);
+  if (on) {
+    plugin.showFloatingButton().then(
+      () => {
+        uni.setStorageSync(KEY, true);
+        uni.showToast({ title: '悬浮球已开启：去支付页截图记账', icon: 'none' });
+      },
+      (err: { message?: string }) => {
+        uni.showToast({ title: err?.message || '需要悬浮窗权限', icon: 'none' });
+      }
+    );
+  } else {
+    plugin.hideFloatingButton();
+    uni.removeStorageSync(KEY);
+    uni.showToast({ title: '悬浮球已关闭', icon: 'none' });
+  }
+  // #endif
+}
+
 function openServerSetting() {
   serverDialogVisible.value = true;
 }
@@ -262,6 +290,14 @@ function onLogout() {
         </view>
         <text class="chev">›</text>
       </view>
+      <view class="notice-row" hover-class="press-bg" @tap="toggleAutoRecord">
+        <image class="row-icon" src="/static/icons/grid-chart.png" mode="aspectFit" />
+        <view class="notice-main">
+          <text class="notice">悬浮球记账</text>
+          <text class="notice-sub">支付后一键截图，AI 识别核对入账</text>
+        </view>
+        <text class="chev">›</text>
+      </view>
     </view>
 
     <view v-if="user" class="card notice-wrap">
@@ -350,4 +386,6 @@ function onLogout() {
 .mode-value { font-size: 26rpx; color: v-bind('theme.sub'); }
 .logout { color: v-bind('theme.danger'); text-align: center; width: 100%; }
 .chev { color: v-bind('theme.sub'); font-size: 32rpx; }
+.notice-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+.notice-sub { font-size: 22rpx; color: v-bind('theme.sub'); }
 </style>

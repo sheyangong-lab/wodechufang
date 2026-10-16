@@ -47,6 +47,22 @@ public class LedgerEntry {
     @Column(nullable = false)
     private String remark = "";
 
+    /** 账单图片（/files/xxx.png 相对地址）；无图时为 null。 */
+    @Column(name = "image_url")
+    private String imageUrl;
+
+    /** 支付方式（微信/支付宝/现金/银行卡…自定义）；可空。 */
+    @Column(name = "payment_method")
+    private String paymentMethod;
+
+    /** 原币种 CNY/HKD/USD（默认 CNY）。 */
+    @Column(nullable = false, length = 3)
+    private String currency = "CNY";
+
+    /** 原币种金额（分）；外币记录原额，amountFen 为按汇率折算后的人民币分。 */
+    @Column(name = "orig_amount_fen")
+    private Long origAmountFen;
+
     /** 分费用明细 JSON 数组文本（如 [{"name":"蔬菜","amountFen":3000}]）；无分项时为 null。 */
     @Column(name = "sub_items")
     private String subItems;
@@ -81,4 +97,13 @@ public class LedgerEntry {
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
     public String getCreatedAt() { return createdAt; }
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String v) { this.imageUrl = v; }
+    public String getPaymentMethod() { return paymentMethod; }
+    public void setPaymentMethod(String v) { this.paymentMethod = v; }
+    public String getCurrency() { return currency; }
+    public void setCurrency(String v) { this.currency = v; }
+    public Long getOrigAmountFen() { return origAmountFen; }
+    public void setOrigAmountFen(Long v) { this.origAmountFen = v; }
 }

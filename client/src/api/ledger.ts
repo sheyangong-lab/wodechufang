@@ -19,6 +19,31 @@ export interface LedgerEntryView {
   /** 分费用明细（总费用=amountFen，由分费用求和）；无分项时为 null */
   subItems: LedgerSubItem[] | null;
   createdAt: string;
+  /** 账单图片（/files/xxx 相对地址） */
+  imageUrl: string | null;
+  /** 支付方式 */
+  paymentMethod: string | null;
+  /** 原币种 CNY/HKD/USD */
+  currency: string;
+  /** 原币种金额（分）；仅外币有值 */
+  origAmountFen: number | null;
+}
+
+export interface SavingView {
+  id: number;
+  name: string;
+  currency: 'CNY' | 'HKD' | 'USD';
+  amountFen: number;
+  kind: 'DEPOSIT' | 'WITHDRAW';
+  note: string;
+  createdAt: string;
+}
+
+export interface SavingSummary {
+  balanceCnyFen: number;
+  balanceHkdFen: number;
+  balanceUsdFen: number;
+  recent: SavingView[];
 }
 
 export interface DayPoint {
@@ -55,6 +80,9 @@ export const ledgerApi = {
       date?: string;
       remark?: string;
       subItems?: LedgerSubItem[];
+      imageUrl?: string;
+      paymentMethod?: string;
+      currency?: 'CNY' | 'HKD' | 'USD';
     }
   ) =>
     request<LedgerEntryView>({
@@ -72,6 +100,9 @@ export const ledgerApi = {
       date?: string;
       remark?: string;
       subItems?: LedgerSubItem[];
+      imageUrl?: string;
+      paymentMethod?: string;
+      currency?: 'CNY' | 'HKD' | 'USD';
     }
   ) =>
     request<LedgerEntryView>({
@@ -81,6 +112,43 @@ export const ledgerApi = {
     }),
   summary: (kitchenId: number, month: string) =>
     request<MonthSummary>({ url: `/api/kitchens/${kitchenId}/ledger/summary?month=${month}` }),
+
+  // ----- 存钱罐 -----
+  savingsList: (kitchenId: number) =>
+    request<SavingView[]>({ url: `/api/kitchens/${kitchenId}/ledger/savings` }),
+  savingsSummary: (kitchenId: number) =>
+    request<SavingSummary>({ url: `/api/kitchens/${kitchenId}/ledger/savings/summary` }),
+  savingAdd: (
+    kitchenId: number,
+    data: { name: string; currency: 'CNY' | 'HKD' | 'USD'; amountFen: number; kind: 'DEPOSIT' | 'WITHDRAW'; note?: string }
+  ) =>
+    request<SavingView>({
+      url: `/api/kitchens/${kitchenId}/ledger/savings`,
+      method: 'POST',
+      data,
+    }),
+  savingRemove: (kitchenId: number, id: number) =>
+    request<void>({ url: `/api/kitchens/${kitchenId}/ledger/savings/${id}`, method: 'DELETE' }),
+
+  // ----- 汇率 -----
+  fx: (kitchenId: number) =>
+    request<{ HKD: number; USD: number }>({ url: `/api/kitchens/${kitchenId}/ledger/fx` }),
+
+  // ----- 支付方式 -----
+  paymentMethods: (kitchenId: number) =>
+    request<{ id: number; name: string }[]>({ url: `/api/kitchens/${kitchenId}/ledger/payment-methods` }),
+  paymentMethodAdd: (kitchenId: number, name: string) =>
+    request<{ id: number; name: string }>({
+      url: `/api/kitchens/${kitchenId}/ledger/payment-methods`,
+      method: 'POST',
+      data: { name },
+    }),
+  paymentMethodRemove: (kitchenId: number, id: number) =>
+    request<void>({ url: `/api/kitchens/${kitchenId}/ledger/payment-methods/${id}`, method: 'DELETE' }),
+
+  // ----- PDF 导出（返回完整 URL，页面内 window.open） -----
+  exportPdfUrl: (kitchenId: number, month: string) =>
+    `/api/kitchens/${kitchenId}/ledger/export.pdf?month=${month}`,
   /** 分类列表（厨房首次使用时服务端自动补默认分类） */
   categories: (kitchenId: number) =>
     request<LedgerCategoryView[]>({

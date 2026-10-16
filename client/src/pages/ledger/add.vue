@@ -12,6 +12,7 @@ import ActionSheet from '@/components/action-sheet.vue';
 import InputDialog from '@/components/input-dialog.vue';
 import CalendarPicker from '@/components/calendar-picker.vue';
 import ImageEditOverlay from '@/components/image-edit-overlay.vue';
+import { chooseOneImage, uploadBlob } from '@/utils/image-pick';
 
 const kitchenId = ref<number | null>(getCurrentKitchenId());
 const type = ref<'EXPENSE' | 'INCOME'>('EXPENSE');
@@ -25,6 +26,79 @@ const groups = ref<{ expense: LedgerCategoryView[]; income: LedgerCategoryView[]
   income: [],
 });
 const submitting = ref(false);
+// ===== 币种（外币自动按汇率折算人民币入账） =====
+type Cur = 'CNY' | 'HKD' | 'USD';
+const SYMBOL: Record<Cur, string> = { CNY: '¥', HKD: 'HK$', USD: '$' };
+const currency = ref<Cur>('CNY');
+const fx = ref<{ HKD: number; USD: number }>({ HKD: 0.92, USD: 7.24 });
+// ===== 支付方式 =====
+const payMethods = ref<{ id: number; name: string }[]>([]);
+const payMethod = ref('');
+const paySheetVisible = ref(false);
+const paySheetItems = computed(() => [
+  { key: '__add', title: '＋ 自定义支付方式', desc: '输入名称添加' },
+  ...payMethods.value.map((m) => ({ key: m.name, title: m.name })),
+]);
+// ===== 账单图片 =====
+const imageUrl = ref('');
+// ===== 币种选择弹层 =====
+const curSheetVisible = ref(false);
+
+const cnyPreview = computed(() => {
+  const fen = totalFen.value;
+  if (currency.value === 'CNY' || !fen) return '';
+  const rate = currency.value === 'HKD' ? fx.value.HKD : fx.value.USD;
+  return `≈ ¥${((fen * rate) / 100).toFixed(2)}`;
+});
+
+function pickCurrency() {
+  curSheetVisible.value = true;
+}
+function onCurPick(key: string) {
+  curSheetVisible.value = false;
+  currency.value = key as Cur;
+}
+function pickPay() {
+  paySheetVisible.value = true;
+}
+function onPayPick(key: string) {
+  paySheetVisible.value = false;
+  if (key === '__add') {
+    uni.showModal({
+      title: '添加支付方式',
+      editable: true,
+      placeholderText: '如：港币现金',
+      success: (r) => {
+        const name = (r.content || '').trim();
+        if (name && kitchenId.value) {
+          ledgerApi.paymentMethodAdd(kitchenId.value, name).then(async () => {
+            await loadPayMethods();
+            payMethod.value = name;
+          });
+        }
+      },
+    });
+    return;
+  }
+  payMethod.value = key;
+}
+async function onPickImage() {
+  const p = await chooseOneImage('album');
+  if (!p) return;
+  uni.showLoading({ title: '上传中…' });
+  try {
+    const blob = await (await fetch(p)).blob();
+    imageUrl.value = await uploadBlob(blob, 'bill.png');
+    uni.hideLoading();
+  } catch {
+    uni.hideLoading();
+    uni.showToast({ title: '图片上传失败', icon: 'none' });
+  }
+}
+function loadPayMethods() {
+  if (!kitchenId.value) return Promise.resolve();
+  return ledgerApi.paymentMethods(kitchenId.value).then((m) => (payMethods.value = m));
+}
 /** 编辑模式：URL 带 id 时为修改既有流水（否则新增） */
 const editId = ref<number | null>(null);
 
@@ -39,6 +113,10 @@ onLoad(async (query) => {
     date.value = query.month === monthStr() ? todayStr() : `${query.month}-01`;
   }
   await loadCategories();
+  loadPayMethods();
+  if (kitchenId.value) {
+    ledgerApi.fx(kitchenId.value).then((f) => (fx.value = f)).catch(() => {});
+  }
   if (editId.value) await loadEntry();
   if (!category.value) category.value = defaultCategory();
 });
@@ -70,6 +148,9 @@ function fillForm(e: LedgerEntryView) {
   category.value = e.category;
   date.value = e.date;
   remark.value = e.remark || '';
+  currency.value = (e.currency as Cur) || 'CNY';
+  payMethod.value = e.paymentMethod || '';
+  imageUrl.value = e.imageUrl || '';
   subRows.value = (e.subItems && e.subItems.length
     ? e.subItems.map((s) => ({ name: s.name, amount: (s.amountFen / 100).toFixed(2) }))
     : [{ name: e.category, amount: (e.amountFen / 100).toFixed(2) }]);
@@ -317,6 +398,9 @@ function submit() {
     date: date.value,
     remark: remark.value || undefined,
     subItems,
+    currency: currency.value,
+    paymentMethod: payMethod.value || undefined,
+    imageUrl: imageUrl.value || undefined,
   };
   const req = editId.value
     ? ledgerApi.update(kitchenId.value, editId.value, payload)
@@ -341,6 +425,20 @@ function submit() {
       <view class="row" hover-class="press-dim" @tap="pickCategory">
         <text class="label req">分类</text>
         <text class="value">{{ category || '请选择分类' }}</text>
+        <text class="chev">›</text>
+      </view>
+
+      <view class="row" hover-class="press-dim" @tap="pickCurrency">
+        <text class="label">币种</text>
+        <text class="value">{{ currency === 'CNY' ? '人民币 ¥' : currency === 'HKD' ? '港币 HK$' : '美元 $' }}
+          <text v-if="currency !== 'CNY'" class="fx-tip">1:{{ currency === 'HKD' ? fx.HKD : fx.USD }}</text>
+        </text>
+        <text class="chev">›</text>
+      </view>
+
+      <view class="row" hover-class="press-dim" @tap="pickPay">
+        <text class="label">支付方式</text>
+        <text class="value">{{ payMethod || '请选择' }}</text>
         <text class="chev">›</text>
       </view>
       <view class="row">
@@ -391,6 +489,13 @@ function submit() {
         <text class="label">备注</text>
         <input v-model="remark" class="input" maxlength="50" placeholder="选填，50字内" placeholder-class="ph" />
       </view>
+
+      <view class="row" hover-class="press-dim" @tap="onPickImage">
+        <text class="label">账单图片</text>
+        <image v-if="imageUrl" class="bill-thumb" :src="getApiBase() + imageUrl" mode="aspectFill" />
+        <text v-else class="value">选一张收据/截图（选填）</text>
+        <text class="chev">›</text>
+      </view>
     </view>
 
     <button class="btn-submit" :disabled="submitting" hover-class="press-sink" @tap="submit">保存</button>
@@ -406,6 +511,23 @@ function submit() {
       :selected="date"
       @select="onDatePick"
       @close="dateCalVisible = false"
+    />
+
+    <ActionSheet
+      :visible="curSheetVisible"
+      :items="[
+        { key: 'CNY', title: '人民币 ¥', desc: '默认' },
+        { key: 'HKD', title: '港币 HK$', desc: '按汇率 ' + fx.HKD + ' 自动折算人民币入账' },
+        { key: 'USD', title: '美元 $', desc: '按汇率 ' + fx.USD + ' 自动折算人民币入账' },
+      ]"
+      @select="onCurPick"
+      @close="curSheetVisible = false"
+    />
+    <ActionSheet
+      :visible="paySheetVisible"
+      :items="paySheetItems"
+      @select="onPayPick"
+      @close="paySheetVisible = false"
     />
     <InputDialog
       :visible="catDialogVisible"
@@ -494,4 +616,9 @@ function submit() {
 }
 .btn-submit[disabled] { background: v-bind('theme.primaryBtnPressed'); color: #fff; }
 .btn-submit::after { border: none; }
+</style>
+
+<style lang="scss" scoped>
+.fx-tip { font-size: 22rpx; color: #B8860B; margin-left: 8rpx; }
+.bill-thumb { width: 100rpx; height: 100rpx; border-radius: 12rpx; }
 </style>

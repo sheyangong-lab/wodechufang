@@ -3,11 +3,83 @@ import { onLaunch, onShow, onHide } from "@dcloudio/uni-app";
 import { initTheme } from "@/styles/theme";
 import { App as CapApp } from "@capacitor/app";
 import { flushQueue, queueSize } from "@/utils/offline";
+import { ref } from "vue";
+import AutoRecordDialog from "@/components/auto-record-dialog.vue";
+import { ledgerApi } from "@/api/ledger";
+import { getCurrentKitchenId } from "@/api/kitchen";
+
+// ===== 半自动记账：原生悬浮球截屏 → GLM 识别 → 核对弹窗 → 入账 =====
+const autoDialog = ref<InstanceType<typeof AutoRecordDialog> | null>(null);
+const autoVisible = ref(false);
+const autoRecognizing = ref(false);
+let lastShotB64 = "";
+
+function setupAutoRecord() {
+  // #ifdef H5
+  const cap = (globalThis as Record<string, any>).Capacitor;
+  if (!cap?.isNativePlatform?.()) return;
+  const plugin = cap.Plugins?.AutoRecord;
+  if (!plugin) return;
+  plugin.addListener?.("screenshot", (ev: { base64: string }) => {
+    onScreenshot(ev.base64);
+  });
+  plugin.addListener?.("screenshotError", (ev: { error: string }) => {
+    uni.showToast({ title: "截屏失败: " + (ev.error || "").slice(0, 20), icon: "none" });
+  });
+  // #endif
+}
+
+async function onScreenshot(b64: string) {
+  lastShotB64 = b64;
+  autoVisible.value = true;
+  autoRecognizing.value = true;
+  autoDialog.value?.open([], b64);
+  try {
+    const kid = getCurrentKitchenId();
+    if (!kid) throw new Error("请先登录并选择厨房");
+    const blob = await (await fetch(`data:image/jpeg;base64,${b64}`)).blob();
+    const fd = new FormData();
+    fd.append("file", blob, "shot.jpg");
+    const token = uni.getStorageSync("token");
+    const base = (await import("@/api/config")).getApiBase();
+    const res = await fetch(`${base}/api/kitchens/${kid}/ledger/recognize`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: fd,
+    });
+    const body = await res.json();
+    if (body.code !== 0 || !Array.isArray(body.data)) throw new Error(body.message || "识别失败");
+    autoRecognizing.value = false;
+    autoDialog.value?.open(body.data, b64);
+  } catch (e) {
+    autoRecognizing.value = false;
+    uni.showToast({ title: "识别失败：" + (e as Error).message.slice(0, 24), icon: "none" });
+    if (!autoVisible.value) return;
+  }
+}
+
+function onAutoConfirm(rows: { name: string; amountFen: number }[]) {
+  autoVisible.value = false;
+  const kid = getCurrentKitchenId();
+  if (!kid || rows.length === 0) return;
+  const total = rows.reduce((s, r) => s + r.amountFen, 0);
+  ledgerApi
+    .add(kid, {
+      type: "EXPENSE",
+      category: "食材采购",
+      amountFen: total,
+      remark: "AI截屏记账",
+      subItems: rows,
+    })
+    .then(() => uni.showToast({ title: "已记入账本", icon: "none" }))
+    .catch(() => uni.showToast({ title: "入账失败，请重试", icon: "none" }));
+}
 
 onLaunch(() => {
   initTheme();
   setupAndroidBackButton();
   syncViewportHeight();
+  setupAutoRecord();
 });
 
 /**
@@ -67,6 +139,17 @@ function setupAndroidBackButton() {
   // #endif
 }
 </script>
+
+<template>
+  <AutoRecordDialog
+    ref="autoDialog"
+    :visible="autoVisible"
+    :recognizing="autoRecognizing"
+    @close="autoVisible = false"
+    @confirm="onAutoConfirm"
+  />
+</template>
+
 <style>
 /* 自绘 CustomTabbar 的内容高度（rpx 随视口宽浮动，取近似值供 fixed 元素避让） */
 :root {

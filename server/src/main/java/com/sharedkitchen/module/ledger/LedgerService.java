@@ -20,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class LedgerService {
 
+    private final FxService fx;
+
     private static final String EXPORT_DIR = "./data/exports";
     /** 新厨房首次打开账本时懒加载的默认分类。 */
     private static final List<String> DEFAULT_EXPENSE_CATEGORIES =
@@ -39,7 +41,8 @@ public class LedgerService {
                          KitchenMemberRepository memberRepository,
                          UserRepository userRepository,
                          ObjectMapper objectMapper,
-                         GlmVisionClient glmVision) {
+                         GlmVisionClient glmVision, com.sharedkitchen.module.ledger.FxService fx) {
+        this.fx = fx;
         this.ledgerRepository = ledgerRepository;
         this.categoryRepository = categoryRepository;
         this.memberRepository = memberRepository;
@@ -127,10 +130,33 @@ public class LedgerService {
         e.setSubItems(toSubItemsJson(subItems));
         e.setDineDate(date);
         e.setRemark(req.remark() == null ? "" : req.remark().trim());
+        applyCurrencyAndExtras(e, req);
         e.setCreatedBy(userId);
         e.setCreatedAt(now());
         ledgerRepository.save(e);
         return toView(e);
+    }
+
+    /**
+     * 币种与附加字段：CNY 原样；HKD/USD 把请求的 amountFen 视为原币种分，
+     * 按当前汇率折算成人民币分写入 amountFen，原额记入 origAmountFen。
+     */
+    private void applyCurrencyAndExtras(LedgerEntry e, ManualEntryReq req) {
+        e.setImageUrl(req.imageUrl() == null || req.imageUrl().isBlank() ? null : req.imageUrl().trim());
+        e.setPaymentMethod(req.paymentMethod() == null || req.paymentMethod().isBlank() ? null : req.paymentMethod().trim());
+        String cur = req.currency() == null || req.currency().isBlank() ? "CNY" : req.currency().trim().toUpperCase();
+        if (!cur.equals("CNY") && !cur.equals("HKD") && !cur.equals("USD")) {
+            throw new BusinessException("币种只支持 CNY/HKD/USD");
+        }
+        e.setCurrency(cur);
+        if (cur.equals("CNY")) {
+            e.setOrigAmountFen(null);
+            return;
+        }
+        double rate = fx.rateOf(cur); // 1 外币 = rate 人民币
+        long cnyFen = Math.round(req.amountFen() * rate);
+        e.setOrigAmountFen(req.amountFen());
+        e.setAmountFen(cnyFen);
     }
 
     /** 删除流水（账本独立，任何来源均可删）。 */
@@ -165,6 +191,7 @@ public class LedgerService {
             e.setDineDate(validDate(req.date()));
         }
         e.setRemark(req.remark() == null ? "" : req.remark().trim());
+        applyCurrencyAndExtras(e, req);
         ledgerRepository.save(e);
         return toView(e);
     }
@@ -423,7 +450,7 @@ public class LedgerService {
         }
     }
 
-    private String validMonth(String month) {
+    public String validMonth(String month) {
         if (month == null || month.isBlank()) return LocalDate.now().toString().substring(0, 7);
         if (!month.trim().matches("\\d{4}-\\d{2}")) {
             throw new BusinessException("月份格式应为 YYYY-MM");
@@ -447,12 +474,14 @@ public class LedgerService {
     private LedgerEntryView toView(LedgerEntry e) {
         return new LedgerEntryView(e.getId(), e.getType(), e.getSource(), e.getOrderId(),
                 e.getCategory(), e.getAmountFen(), e.getDineDate(), e.getRemark(),
-                parseSubItems(e.getSubItems()), e.getCreatedAt());
+                parseSubItems(e.getSubItems()), e.getCreatedAt(),
+                e.getImageUrl(), e.getPaymentMethod(), e.getCurrency(), e.getOrigAmountFen());
     }
 
     public record ManualEntryReq(String type, String category,
                                  Long amountFen, String date, String remark,
-                                 List<SubItemReq> subItems) {}
+                                 List<SubItemReq> subItems,
+                                 String imageUrl, String paymentMethod, String currency) {}
 
     public record SubItemReq(String name, Long amountFen) {}
 
@@ -460,7 +489,8 @@ public class LedgerService {
 
     public record LedgerEntryView(Long id, String type, String source, Long orderId,
                                   String category, Long amountFen, String date,
-                                  String remark, List<SubItemView> subItems, String createdAt) {}
+                                  String remark, List<SubItemView> subItems, String createdAt,
+                                  String imageUrl, String paymentMethod, String currency, Long origAmountFen) {}
 
     public record SubItemView(String name, Long amountFen) {}
 
