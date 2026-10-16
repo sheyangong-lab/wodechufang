@@ -18,6 +18,8 @@ services:
     restart: unless-stopped
     ports:
       - "${HTTPS_PORT:-443}:443"   # HTTPS 主入口（高位端口/端口映射场景在 .env 设 HTTPS_PORT）
+      - "443:443"   # 内网标准口（免端口号访问）
+      - "8080:80"   # 内网纯 HTTP（免证书访问 http://IP:8080，Caddyfile 需含 http:// 站点）
     environment:
       # 部署时替换域名（.env 文件或 export DOMAIN=...）
       DOMAIN: ${DOMAIN:-example.com}
