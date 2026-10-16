@@ -4,13 +4,7 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.graphics.PixelFormat;
-import android.hardware.display.DisplayManager;
-import android.hardware.display.VirtualDisplay;
-import android.media.Image;
-import android.media.ImageReader;
-import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
 import android.os.Build;
@@ -23,6 +17,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
+import android.widget.Toast;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -30,7 +25,6 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import java.io.ByteArrayOutputStream;
-import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -50,9 +44,9 @@ public class AutoRecordPlugin extends Plugin {
     private WindowManager windowManager;
     private ImageView floatingButton;
     private MediaProjectionManager projectionManager;
-    private MediaProjection projection;
-    private VirtualDisplay virtualDisplay;
-    private ImageReader imageReader;
+    // 授权数据静态持有（复用免重复弹框）；截屏会话在 ScreenCaptureService（前台服务）
+    private static int lastResultCode = 0;
+    private static Intent lastResultData = null;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final AtomicReference<PluginCall> pendingCall = new AtomicReference<>();
 
@@ -94,7 +88,13 @@ public class AutoRecordPlugin extends Plugin {
             return;
         }
         if (requestCode == REQ_PROJECTION && resultCode == Activity.RESULT_OK && data != null) {
-            captureWithPermission(resultCode, data);
+            lastResultCode = resultCode;
+            lastResultData = data;
+            // 先启动 FGS（必须），服务就绪后截一帧确认
+            startCaptureService();
+            Toast.makeText(getActivity().getApplicationContext(),
+                    "授权成功：以后点悬浮球直接截屏", Toast.LENGTH_SHORT).show();
+            main.postDelayed(() -> ScreenCaptureService.requestShot(), 900);
         }
     }
 
@@ -170,86 +170,57 @@ public class AutoRecordPlugin extends Plugin {
         }
     }
 
-    // ----- 截屏（MediaProjection） -----
+    // ----- 截屏（MediaProjection 前台服务，Android 14+ 必需） -----
 
     private void onFloatingTapped() {
         Activity activity = getActivity();
         if (activity == null) {
             return;
         }
+        // 注册结果回调（静态，服务直连）
+        ScreenCaptureService.setCallback(new ScreenCaptureService.ShotCallback() {
+            @Override
+            public void onShot(String base64Jpeg) {
+                JSObject ret = new JSObject();
+                ret.put("base64", base64Jpeg);
+                notifyListeners("screenshot", ret);
+            }
+
+            @Override
+            public void onError(String message) {
+                notifyError(message);
+            }
+        });
+        // 已有授权数据 → 直接拉起前台服务建立会话（静默）
+        if (lastResultData != null) {
+            startCaptureService();
+            ScreenCaptureService.requestShot();
+            return;
+        }
         if (projectionManager == null) {
             projectionManager = (MediaProjectionManager)
                     activity.getSystemService(Context.MEDIA_PROJECTION_SERVICE);
         }
-        if (projection != null) {
-            takeScreenshot();
-            return;
-        }
-        // 首次需要用户授权（系统弹窗）
+        // 首次：系统授权弹窗（选"共享整个屏幕"，仅此一次）
         startActivityForResult(null,
                 projectionManager.createScreenCaptureIntent(), REQ_PROJECTION);
     }
 
-    private void captureWithPermission(int resultCode, Intent data) {
+    private void startCaptureService() {
         Activity activity = getActivity();
-        if (activity == null) {
+        if (activity == null || lastResultData == null) {
             return;
         }
         try {
-            projection = projectionManager.getMediaProjection(resultCode, data);
-            DisplayMetrics dm = activity.getResources().getDisplayMetrics();
-            int w = dm.widthPixels;
-            int h = dm.heightPixels;
-            imageReader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2);
-            virtualDisplay = projection.createVirtualDisplay(
-                    "auto-record", w, h, dm.densityDpi,
-                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                    imageReader.getSurface(), null, null);
-            // 等一帧渲染
-            main.postDelayed(this::takeScreenshot, 350);
-        } catch (Exception e) {
-            notifyError("截屏初始化失败: " + e.getMessage());
-        }
-    }
-
-    private void takeScreenshot() {
-        try {
-            Image image = imageReader != null ? imageReader.acquireLatestImage() : null;
-            if (image == null) {
-                main.postDelayed(this::takeScreenshot, 120);
-                return;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                activity.startForegroundService(
+                        ScreenCaptureService.createIntent(activity, lastResultCode, lastResultData));
+            } else {
+                activity.startService(
+                        ScreenCaptureService.createIntent(activity, lastResultCode, lastResultData));
             }
-            Image.Plane[] planes = image.getPlanes();
-            ByteBuffer buffer = planes[0].getBuffer();
-            int pixelStride = planes[0].getPixelStride();
-            int rowStride = planes[0].getRowStride();
-            int rowPadding = rowStride - pixelStride * image.getWidth();
-
-            Bitmap full = Bitmap.createBitmap(
-                    image.getWidth() + rowPadding / pixelStride,
-                    image.getHeight(), Bitmap.Config.ARGB_8888);
-            full.copyPixelsFromBuffer(buffer);
-            image.close();
-
-            // 压缩到 ≤1080 宽 + JPEG(80)，控制 base64 体积
-            int targetW = Math.min(1080, full.getWidth());
-            Bitmap scaled = Bitmap.createScaledBitmap(full, targetW,
-                    (int) (full.getHeight() * (targetW / (float) full.getWidth())), true);
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            scaled.compress(Bitmap.CompressFormat.JPEG, 80, out);
-            byte[] bytes = out.toByteArray();
-            String base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
-
-            JSObject ret = new JSObject();
-            ret.put("base64", base64);
-            ret.put("width", scaled.getWidth());
-            ret.put("height", scaled.getHeight());
-            notifyListeners("screenshot", ret);
-
-            full.recycle();
-            scaled.recycle();
         } catch (Exception e) {
-            notifyError("截屏失败: " + e.getMessage());
+            notifyError("截屏服务启动失败: " + e.getMessage());
         }
     }
 
@@ -261,12 +232,7 @@ public class AutoRecordPlugin extends Plugin {
 
     @Override
     protected void handleOnDestroy() {
+        // 只收悬浮球；截屏会话保留（静态），下次点击免授权直接用
         detachFloatingButton();
-        if (virtualDisplay != null) {
-            virtualDisplay.release();
-        }
-        if (projection != null) {
-            projection.stop();
-        }
     }
 }
