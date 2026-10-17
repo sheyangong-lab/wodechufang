@@ -12,6 +12,7 @@ import jakarta.persistence.Table;
 public class Notification {
 
     public static final String TYPE_FRIDGE_EXPIRY = "FRIDGE_EXPIRY";
+    public static final String TYPE_BUDGET = "BUDGET";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

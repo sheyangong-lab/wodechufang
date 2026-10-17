@@ -19,6 +19,8 @@ public class LedgerEntry {
 
     public static final String SOURCE_ORDER = "ORDER";
     public static final String SOURCE_MANUAL = "MANUAL";
+    /** 周期账自动入账（RecurringBillService 扫描生成）。 */
+    public static final String SOURCE_RECURRING = "RECURRING";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

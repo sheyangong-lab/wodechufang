@@ -36,4 +36,11 @@ public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, Long> 
             + "from LedgerEntry e where e.kitchenId = :kid and e.accountId is not null "
             + "group by e.accountId")
     List<Object[]> sumFlowByAccountId(@Param("kid") Long kitchenId);
+
+    /** 某月各分类的支出合计（预算用量）：monthPrefix 形如 '2026-10%'；全部行求和即当月支出总额。 */
+    @Query("select e.category, sum(e.amountFen) from LedgerEntry e "
+            + "where e.kitchenId = :kid and e.type = 'EXPENSE' and e.dineDate like :monthPrefix "
+            + "group by e.category")
+    List<Object[]> sumExpenseByCategory(@Param("kid") Long kitchenId,
+                                        @Param("monthPrefix") String monthPrefix);
 }

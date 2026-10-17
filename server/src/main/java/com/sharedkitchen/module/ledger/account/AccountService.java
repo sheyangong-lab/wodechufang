@@ -4,6 +4,7 @@ import com.sharedkitchen.common.BusinessException;
 import com.sharedkitchen.module.kitchen.KitchenMember;
 import com.sharedkitchen.module.kitchen.KitchenMemberRepository;
 import com.sharedkitchen.module.ledger.LedgerEntryRepository;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,13 +23,16 @@ public class AccountService {
     private final AccountRepository accountRepository;
     private final LedgerEntryRepository ledgerRepository;
     private final KitchenMemberRepository memberRepository;
+    private final BudgetRepository budgetRepository;
 
     public AccountService(AccountRepository accountRepository,
                           LedgerEntryRepository ledgerRepository,
-                          KitchenMemberRepository memberRepository) {
+                          KitchenMemberRepository memberRepository,
+                          BudgetRepository budgetRepository) {
         this.accountRepository = accountRepository;
         this.ledgerRepository = ledgerRepository;
         this.memberRepository = memberRepository;
+        this.budgetRepository = budgetRepository;
     }
 
     /** 账户列表（含实时余额）；新厨房首次访问懒加载四个默认账户。 */
@@ -145,8 +149,31 @@ public class AccountService {
             }
         }
         long debt = -creditBalance; // CREDIT 组余额为负表示欠款，取反得正数负债
+        // 当月预算提示（无总预算时 null/null/false）：80% 预警由前端据 budgetWarn 展示，不发通知
+        Long budgetTotalFen = null;
+        Long budgetUsedFen = null;
+        boolean budgetWarn = false;
+        String month = LocalDate.now().toString().substring(0, 7);
+        for (Budget b : budgetRepository.findByKitchenIdAndMonth(kitchenId, month)) {
+            if (b.getCategory() == null) {
+                budgetTotalFen = b.getAmountFen();
+                budgetUsedFen = monthExpenseTotal(kitchenId, month);
+                budgetWarn = budgetTotalFen > 0 && budgetUsedFen * 5 >= budgetTotalFen * 4; // used/total >= 80%
+                break;
+            }
+        }
         return new AssetsView(disposable, saving, debt, creditLimit,
-                creditLimit - debt, disposable + saving - debt);
+                creditLimit - debt, disposable + saving - debt,
+                budgetTotalFen, budgetUsedFen, budgetWarn);
+    }
+
+    /** 当月 EXPENSE 支出总额（预算用量口径；TRANSFER 不计）。 */
+    private long monthExpenseTotal(Long kitchenId, String month) {
+        long sum = 0;
+        for (Object[] row : ledgerRepository.sumExpenseByCategory(kitchenId, month + "%")) {
+            sum += row[1] == null ? 0L : ((Number) row[1]).longValue();
+        }
+        return sum;
     }
 
     // ---------- 内部 ----------
@@ -222,5 +249,6 @@ public class AccountService {
                               Long creditLimitFen, Integer sort, Long balanceFen) {}
 
     public record AssetsView(Long disposableFen, Long savingFen, Long creditDebtFen,
-                             Long creditLimitFen, Long creditRemainFen, Long netAssetFen) {}
+                             Long creditLimitFen, Long creditRemainFen, Long netAssetFen,
+                             Long budgetTotalFen, Long budgetUsedFen, Boolean budgetWarn) {}
 }

@@ -109,6 +109,22 @@ check "转账后资产总览变动" "$R" '"savingFen":'
 R=$(curl -s "$BASE/api/kitchens/$KID/ledger/summary?month=$(date +%Y-%m)" -H "$HA")
 check "TRANSFER不计入收支" "$R" '"balance"'
 
+# 4.8 预算/周期/目标/兼容桩(P2)
+M=$(date +%Y-%m)
+R=$(curl -s -X PUT $BASE/api/kitchens/$KID/ledger/budgets -H "$J" -H "$HA" -d "{\"month\":\"$M\",\"totalFen\":300000,\"items\":[]}")
+check "设总预算" "$R" '"totalFen":300000'
+R=$(curl -s "$BASE/api/kitchens/$KID/ledger/budgets?month=$M" -H "$HA")
+check "预算用量" "$R" '"usedFen"'
+R=$(curl -s -X POST $BASE/api/kitchens/$KID/ledger/recurring-bills -H "$J" -H "$HA" -d "{\"type\":\"EXPENSE\",\"category\":\"水电燃气\",\"amountFen\":8600,\"cycle\":\"MONTHLY\",\"nextDate\":\"2020-01-01\"}")
+check "建周期账" "$R" '"cycle":"MONTHLY"'
+check "周期账立即补账" "$R" '"lastEntryId"'
+R=$(curl -s -X POST $BASE/api/kitchens/$KID/ledger/saving-goals -H "$J" -H "$HA" -d '{"name":"春节旅行","targetFen":3000000}')
+check "建存款目标" "$R" '"pct"'
+R=$(curl -s $BASE/api/kitchens/$KID/ledger/savings -H "$HA")
+check "旧存钱罐列表为空桩" "$R" '"data":[]'
+R=$(curl -s -X POST $BASE/api/kitchens/$KID/ledger/savings -H "$J" -H "$HA" -d '{"name":"x","currency":"CNY","amountFen":100}')
+check "旧存钱罐写入被拒" "$R" '升级'
+
 # 4.5 中枢聚合接口
 R=$(curl -s $BASE/api/kitchens/$KID/hub/overview -H "$HA")
 check "中枢总览-结余字段" "$R" '"balance"'

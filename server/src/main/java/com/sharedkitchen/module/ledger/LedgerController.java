@@ -2,6 +2,9 @@ package com.sharedkitchen.module.ledger;
 
 import com.sharedkitchen.common.ApiResponse;
 import com.sharedkitchen.common.JwtAuthFilter;
+import com.sharedkitchen.module.ledger.account.LedgerBudgetService;
+import com.sharedkitchen.module.ledger.account.RecurringBillService;
+import com.sharedkitchen.module.ledger.account.SavingGoalService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -26,18 +29,25 @@ public class LedgerController {
 
     private final LedgerService ledgerService;
     private final SavingService savingService;
-    private final FxService fx;
     private final PaymentMethodRepository paymentMethods;
     private final LedgerPdfService pdfService;
+    private final LedgerBudgetService budgetService;
+    private final RecurringBillService billService;
+    private final SavingGoalService goalService;
 
     public LedgerController(LedgerService ledgerService, SavingService savingService,
-                            FxService fx, PaymentMethodRepository paymentMethods,
-                            LedgerPdfService pdfService) {
+                            PaymentMethodRepository paymentMethods,
+                            LedgerPdfService pdfService,
+                            LedgerBudgetService budgetService,
+                            RecurringBillService billService,
+                            SavingGoalService goalService) {
         this.ledgerService = ledgerService;
         this.savingService = savingService;
-        this.fx = fx;
         this.paymentMethods = paymentMethods;
         this.pdfService = pdfService;
+        this.budgetService = budgetService;
+        this.billService = billService;
+        this.goalService = goalService;
     }
 
     public record ManualEntryReq(
@@ -176,6 +186,103 @@ public class LedgerController {
         return (Long) request.getAttribute(JwtAuthFilter.ATTR_USER_ID);
     }
 
+    // ----- 预算（P2：总预算+分类预算，每厨房每月整体覆盖） -----
+
+    @GetMapping("/budgets")
+    public ApiResponse<LedgerBudgetService.BudgetView> budgets(
+            HttpServletRequest request, @PathVariable Long kitchenId,
+            @RequestParam(required = false) String month) {
+        return ApiResponse.ok(budgetService.get(userId(request), kitchenId, month));
+    }
+
+    public record BudgetItemReq(String category, Long amountFen) {}
+
+    public record BudgetPutReq(@NotBlank String month, Long totalFen,
+                               List<BudgetItemReq> items) {}
+
+    @PutMapping("/budgets")
+    public ApiResponse<LedgerBudgetService.BudgetPutView> budgetsPut(
+            HttpServletRequest request, @PathVariable Long kitchenId,
+            @RequestBody @Validated BudgetPutReq req) {
+        return ApiResponse.ok(budgetService.put(userId(request), kitchenId,
+                new LedgerBudgetService.BudgetPutReq(req.month(), req.totalFen(),
+                        req.items() == null ? null : req.items().stream()
+                                .map(i -> new LedgerBudgetService.BudgetItemReq(i.category(), i.amountFen()))
+                                .toList())));
+    }
+
+    // ----- 周期账单（P2：固定收支自动入账） -----
+
+    @GetMapping("/recurring-bills")
+    public ApiResponse<List<RecurringBillService.BillView>> bills(
+            HttpServletRequest request, @PathVariable Long kitchenId) {
+        return ApiResponse.ok(billService.list(userId(request), kitchenId));
+    }
+
+    public record BillReq(String type, String category, Long amountFen, Long accountId,
+                          String cycle, String nextDate, String remark, Integer enabled) {}
+
+    @PostMapping("/recurring-bills")
+    public ApiResponse<RecurringBillService.BillView> billCreate(
+            HttpServletRequest request, @PathVariable Long kitchenId,
+            @RequestBody BillReq req) {
+        return ApiResponse.ok(billService.create(userId(request), kitchenId, toBillReq(req)));
+    }
+
+    @PutMapping("/recurring-bills/{id}")
+    public ApiResponse<RecurringBillService.BillView> billUpdate(
+            HttpServletRequest request, @PathVariable Long kitchenId, @PathVariable Long id,
+            @RequestBody BillReq req) {
+        return ApiResponse.ok(billService.update(userId(request), kitchenId, id, toBillReq(req)));
+    }
+
+    @DeleteMapping("/recurring-bills/{id}")
+    public ApiResponse<Void> billDelete(
+            HttpServletRequest request, @PathVariable Long kitchenId, @PathVariable Long id) {
+        billService.delete(userId(request), kitchenId, id);
+        return ApiResponse.ok();
+    }
+
+    /** 手动触发扫描（等价每日 8:05 定时任务）：周期账补账 + 预算超支通知；返回生成流水/通知条数。 */
+    @PostMapping("/recurring-bills/scan")
+    public ApiResponse<Map<String, Object>> billScan(
+            HttpServletRequest request, @PathVariable Long kitchenId) {
+        billService.list(userId(request), kitchenId); // 成员权限校验（扫描本身跨厨房）
+        int entries = billService.scanOnce();
+        int notified = budgetService.notifyOverruns();
+        return ApiResponse.ok(Map.of("entries", entries, "notified", notified));
+    }
+
+    private RecurringBillService.BillReq toBillReq(BillReq req) {
+        return new RecurringBillService.BillReq(req.type(), req.category(), req.amountFen(),
+                req.accountId(), req.cycle(), req.nextDate(), req.remark(), req.enabled());
+    }
+
+    // ----- 存款目标（P2：progress=全部 SAVING 账户余额之和） -----
+
+    @GetMapping("/saving-goals")
+    public ApiResponse<List<SavingGoalService.GoalView>> goals(
+            HttpServletRequest request, @PathVariable Long kitchenId) {
+        return ApiResponse.ok(goalService.list(userId(request), kitchenId));
+    }
+
+    public record GoalReq(@NotBlank String name, @NotNull Long targetFen, String deadline) {}
+
+    @PostMapping("/saving-goals")
+    public ApiResponse<SavingGoalService.GoalView> goalCreate(
+            HttpServletRequest request, @PathVariable Long kitchenId,
+            @RequestBody @Validated GoalReq req) {
+        return ApiResponse.ok(goalService.create(userId(request), kitchenId,
+                req.name(), req.targetFen(), req.deadline()));
+    }
+
+    @DeleteMapping("/saving-goals/{id}")
+    public ApiResponse<Void> goalDelete(
+            HttpServletRequest request, @PathVariable Long kitchenId, @PathVariable Long id) {
+        goalService.delete(userId(request), kitchenId, id);
+        return ApiResponse.ok();
+    }
+
     // ----- 存钱罐 -----
 
     @GetMapping("/savings")
@@ -208,11 +315,11 @@ public class LedgerController {
         return ApiResponse.ok();
     }
 
-    // ----- 汇率 -----
+    // ----- 汇率（v2 固定展示值，兼容旧版 App；记账折算仍走 FxService 实时汇率） -----
 
     @GetMapping("/fx")
     public ApiResponse<Map<String, Object>> fx() {
-        return ApiResponse.ok(Map.of("HKD", fx.hkd(), "USD", fx.usd()));
+        return ApiResponse.ok(Map.of("CNY", 1, "HKD", 0.92, "USD", 7.24));
     }
 
     // ----- 支付方式 -----
