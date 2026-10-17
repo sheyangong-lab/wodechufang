@@ -475,7 +475,8 @@ public class LedgerService {
         return new LedgerEntryView(e.getId(), e.getType(), e.getSource(), e.getOrderId(),
                 e.getCategory(), e.getAmountFen(), e.getDineDate(), e.getRemark(),
                 parseSubItems(e.getSubItems()), e.getCreatedAt(),
-                e.getImageUrl(), e.getPaymentMethod(), e.getCurrency(), e.getOrigAmountFen());
+                e.getImageUrl(), e.getPaymentMethod(), e.getCurrency(), e.getOrigAmountFen(),
+                e.getAccountId(), e.getTransferDir());
     }
 
     public record ManualEntryReq(String type, String category,
@@ -490,7 +491,8 @@ public class LedgerService {
     public record LedgerEntryView(Long id, String type, String source, Long orderId,
                                   String category, Long amountFen, String date,
                                   String remark, List<SubItemView> subItems, String createdAt,
-                                  String imageUrl, String paymentMethod, String currency, Long origAmountFen) {}
+                                  String imageUrl, String paymentMethod, String currency, Long origAmountFen,
+                                  Long accountId, String transferDir) {}
 
     public record SubItemView(String name, Long amountFen) {}
 

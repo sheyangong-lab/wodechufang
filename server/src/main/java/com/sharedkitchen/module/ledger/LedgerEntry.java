@@ -7,7 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-/** 账本流水：type = INCOME(收入) / EXPENSE(支出) / REFUND(退款冲销)；金额为「分」正数。 */
+/** 账本流水：type = INCOME(收入) / EXPENSE(支出) / REFUND(退款冲销) / TRANSFER(账户间转账)；金额为「分」正数。 */
 @Entity
 @Table(name = "ledger_entries")
 public class LedgerEntry {
@@ -15,6 +15,7 @@ public class LedgerEntry {
     public static final String TYPE_INCOME = "INCOME";
     public static final String TYPE_EXPENSE = "EXPENSE";
     public static final String TYPE_REFUND = "REFUND";
+    public static final String TYPE_TRANSFER = "TRANSFER";
 
     public static final String SOURCE_ORDER = "ORDER";
     public static final String SOURCE_MANUAL = "MANUAL";
@@ -67,6 +68,14 @@ public class LedgerEntry {
     @Column(name = "sub_items")
     private String subItems;
 
+    /** 所属账户（accounts.id）；未指定时为 null。 */
+    @Column(name = "account_id")
+    private Long accountId;
+
+    /** 转账方向 'in'/'out'；仅 TRANSFER 流水使用。 */
+    @Column(name = "transfer_dir", length = 3)
+    private String transferDir;
+
     @Column(name = "created_by")
     private Long createdBy;
 
@@ -106,4 +115,8 @@ public class LedgerEntry {
     public void setCurrency(String v) { this.currency = v; }
     public Long getOrigAmountFen() { return origAmountFen; }
     public void setOrigAmountFen(Long v) { this.origAmountFen = v; }
+    public Long getAccountId() { return accountId; }
+    public void setAccountId(Long accountId) { this.accountId = accountId; }
+    public String getTransferDir() { return transferDir; }
+    public void setTransferDir(String transferDir) { this.transferDir = transferDir; }
 }

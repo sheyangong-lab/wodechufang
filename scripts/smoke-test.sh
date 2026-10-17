@@ -89,6 +89,16 @@ curl -s -o /tmp/smoke-ledger.xlsx "$BASE$XURL"
 SHEETS=$(python3 -c "import zipfile;print(len([n for n in zipfile.ZipFile('/tmp/smoke-ledger.xlsx').namelist() if 'worksheets/sheet' in n]))" 2>/dev/null || echo 0)
 [ "$SHEETS" = "3" ] && ok "Excel导出3 Sheet有效" || bad "Excel导出 (Sheet数=$SHEETS)"
 
+# 4.6 账户体系(P2)
+R=$(curl -s -X POST $BASE/api/kitchens/$KID/ledger/accounts -H "$J" -H "$HA" -d '{"name":"零钱通","type":"SAVING","initialFen":50000}')
+check "建存款账户" "$R" '"name":"零钱通"'
+AID=$(echo "$R" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['id'])" 2>/dev/null)
+R=$(curl -s $BASE/api/kitchens/$KID/ledger/accounts -H "$HA")
+check "账户列表含默认现金" "$R" '"name":"现金"'
+check "账户余额=期初" "$R" '"balanceFen":50000'
+R=$(curl -s $BASE/api/kitchens/$KID/ledger/assets -H "$HA")
+check "资产总览含净资产" "$R" '"netAssetFen"'
+
 # 4.5 中枢聚合接口
 R=$(curl -s $BASE/api/kitchens/$KID/hub/overview -H "$HA")
 check "中枢总览-结余字段" "$R" '"balance"'
