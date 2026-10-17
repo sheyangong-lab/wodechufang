@@ -47,7 +47,8 @@ public class LedgerController {
             String date,
             String remark,
             List<LedgerService.SubItemReq> subItems,
-            String imageUrl, String paymentMethod, String currency) {}
+            String imageUrl, String paymentMethod, String currency,
+            Long accountId) {}
 
     @PostMapping("/entries")
     public ApiResponse<LedgerService.LedgerEntryView> add(
@@ -57,7 +58,7 @@ public class LedgerController {
         return ApiResponse.ok(ledgerService.addManual(userId, kitchenId,
                 new LedgerService.ManualEntryReq(req.type(), req.category(),
                         req.amountFen(), req.date(), req.remark(), req.subItems(),
-                        req.imageUrl(), req.paymentMethod(), req.currency())));
+                        req.imageUrl(), req.paymentMethod(), req.currency(), req.accountId())));
     }
 
     @PutMapping("/entries/{id}")
@@ -68,7 +69,20 @@ public class LedgerController {
         return ApiResponse.ok(ledgerService.updateManual(userId, id,
                 new LedgerService.ManualEntryReq(req.type(), req.category(),
                         req.amountFen(), req.date(), req.remark(), req.subItems(),
-                        req.imageUrl(), req.paymentMethod(), req.currency())));
+                        req.imageUrl(), req.paymentMethod(), req.currency(), req.accountId())));
+    }
+
+    /** 账户间转账（存钱/取回/还款）：一次请求生成 TRANSFER 双行（out 在转出账户、in 在转入账户）。 */
+    public record TransferReq(Long fromAccountId, Long toAccountId,
+                              @NotNull Long amountFen, String date, String remark) {}
+
+    @PostMapping("/transfers")
+    public ApiResponse<List<LedgerService.LedgerEntryView>> transfer(
+            HttpServletRequest request, @PathVariable Long kitchenId,
+            @RequestBody @Validated TransferReq req) {
+        return ApiResponse.ok(ledgerService.transfer(userId(request), kitchenId,
+                new LedgerService.TransferReq(req.fromAccountId(), req.toAccountId(),
+                        req.amountFen(), req.date(), req.remark())));
     }
 
     @GetMapping("/entries")

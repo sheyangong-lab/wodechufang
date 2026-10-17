@@ -99,6 +99,16 @@ check "账户余额=期初" "$R" '"balanceFen":50000'
 R=$(curl -s $BASE/api/kitchens/$KID/ledger/assets -H "$HA")
 check "资产总览含净资产" "$R" '"netAssetFen"'
 
+# 4.7 TRANSFER(P2)
+SAV=$(curl -s $BASE/api/kitchens/$KID/ledger/accounts -H "$HA" | python3 -c "import sys,json;d=json.load(sys.stdin)['data'];print([a['id'] for a in d if a['type']=='SAVING'][0])")
+DIS=$(curl -s $BASE/api/kitchens/$KID/ledger/accounts -H "$HA" | python3 -c "import sys,json;d=json.load(sys.stdin)['data'];print([a['id'] for a in d if a['type']=='DISPOSABLE'][0])")
+R=$(curl -s -X POST $BASE/api/kitchens/$KID/ledger/transfers -H "$J" -H "$HA" -d "{\"fromAccountId\":$DIS,\"toAccountId\":$SAV,\"amountFen\":10000,\"date\":\"$(date +%F)\"}")
+check "存钱转账" "$R" '"type":"TRANSFER"'
+R=$(curl -s "$BASE/api/kitchens/$KID/ledger/assets" -H "$HA")
+check "转账后资产总览变动" "$R" '"savingFen":'
+R=$(curl -s "$BASE/api/kitchens/$KID/ledger/summary?month=$(date +%Y-%m)" -H "$HA")
+check "TRANSFER不计入收支" "$R" '"balance"'
+
 # 4.5 中枢聚合接口
 R=$(curl -s $BASE/api/kitchens/$KID/hub/overview -H "$HA")
 check "中枢总览-结余字段" "$R" '"balance"'

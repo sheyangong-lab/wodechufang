@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sharedkitchen.common.BusinessException;
 import com.sharedkitchen.module.kitchen.KitchenMember;
 import com.sharedkitchen.module.kitchen.KitchenMemberRepository;
+import com.sharedkitchen.module.ledger.account.Account;
+import com.sharedkitchen.module.ledger.account.AccountRepository;
 import com.sharedkitchen.module.user.UserRepository;
 import java.io.File;
 import java.time.LocalDate;
@@ -35,13 +37,15 @@ public class LedgerService {
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final GlmVisionClient glmVision;
+    private final AccountRepository accountRepository;
 
     public LedgerService(LedgerEntryRepository ledgerRepository,
                          LedgerCategoryRepository categoryRepository,
                          KitchenMemberRepository memberRepository,
                          UserRepository userRepository,
                          ObjectMapper objectMapper,
-                         GlmVisionClient glmVision, com.sharedkitchen.module.ledger.FxService fx) {
+                         GlmVisionClient glmVision, com.sharedkitchen.module.ledger.FxService fx,
+                         AccountRepository accountRepository) {
         this.fx = fx;
         this.ledgerRepository = ledgerRepository;
         this.categoryRepository = categoryRepository;
@@ -49,6 +53,7 @@ public class LedgerService {
         this.userRepository = userRepository;
         this.objectMapper = objectMapper;
         this.glmVision = glmVision;
+        this.accountRepository = accountRepository;
     }
 
     // ---------- 账本分类（每厨房可自定义） ----------
@@ -131,6 +136,7 @@ public class LedgerService {
         e.setDineDate(date);
         e.setRemark(req.remark() == null ? "" : req.remark().trim());
         applyCurrencyAndExtras(e, req);
+        e.setAccountId(validAccount(kitchenId, req.accountId()));
         e.setCreatedBy(userId);
         e.setCreatedAt(now());
         ledgerRepository.save(e);
@@ -183,7 +189,9 @@ public class LedgerService {
             throw new BusinessException("金额必须大于 0");
         }
         List<SubItemView> subItems = validSubItems(req.subItems(), req.amountFen());
+        boolean wasTransfer = LedgerEntry.TYPE_TRANSFER.equals(e.getType());
         e.setType(req.type());
+        e.setTransferDir(null); // transferDir 仅 TRANSFER 有效；类型一经改为收支即清方向
         e.setCategory(req.category() == null || req.category().isBlank() ? "其他" : req.category().trim());
         e.setAmountFen(req.amountFen());
         e.setSubItems(toSubItemsJson(subItems));
@@ -192,8 +200,74 @@ public class LedgerService {
         }
         e.setRemark(req.remark() == null ? "" : req.remark().trim());
         applyCurrencyAndExtras(e, req);
+        if (req.accountId() != null) { // 未传则保留原账户；转账流水禁止改账户
+            if (wasTransfer) {
+                throw new BusinessException("转账流水不允许修改账户");
+            }
+            e.setAccountId(validAccount(e.getKitchenId(), req.accountId()));
+        }
         ledgerRepository.save(e);
         return toView(e);
+    }
+
+    /**
+     * 账户间转账（存钱/取回/还款）：生成 TRANSFER 双行——out 行挂转出账户、in 行挂转入账户。
+     * 余额推导见 LedgerEntryRepository.sumFlowByAccountId（out 记 −、in 记 +）。
+     */
+    @Transactional
+    public List<LedgerEntryView> transfer(Long userId, Long kitchenId, TransferReq req) {
+        requireMember(kitchenId, userId);
+        if (req.fromAccountId() == null || req.toAccountId() == null) {
+            throw new BusinessException("请选择转出与转入账户");
+        }
+        if (req.amountFen() == null || req.amountFen() <= 0) {
+            throw new BusinessException("金额必须大于 0");
+        }
+        Account from = accountRepository.findByIdAndDeleted(req.fromAccountId(), 0)
+                .orElseThrow(() -> new BusinessException(404, "转出账户不存在"));
+        Account to = accountRepository.findByIdAndDeleted(req.toAccountId(), 0)
+                .orElseThrow(() -> new BusinessException(404, "转入账户不存在"));
+        if (!from.getKitchenId().equals(kitchenId) || !to.getKitchenId().equals(kitchenId)) {
+            throw new BusinessException(403, "账户不属于本厨房");
+        }
+        if (from.getId().equals(to.getId())) {
+            throw new BusinessException("转出转入不能是同一账户");
+        }
+        String date = validDate(req.date());
+        // 双行：out 在 from，in 在 to；remark 前缀由调用方语义决定（存钱/取回/还款）
+        LedgerEntry out = baseTransfer(kitchenId, userId, req.amountFen(), date, req.remark(), from.getId(), "out");
+        LedgerEntry in = baseTransfer(kitchenId, userId, req.amountFen(), date, req.remark(), to.getId(), "in");
+        return List.of(toView(out), toView(in));
+    }
+
+    private LedgerEntry baseTransfer(Long kitchenId, Long userId, Long amountFen, String date,
+                                     String remark, Long accountId, String dir) {
+        LedgerEntry e = new LedgerEntry();
+        e.setKitchenId(kitchenId);
+        e.setType(LedgerEntry.TYPE_TRANSFER);
+        e.setSource(LedgerEntry.SOURCE_MANUAL);
+        e.setCategory("转账");
+        e.setAmountFen(amountFen);
+        e.setDineDate(date);
+        e.setRemark(remark == null ? "" : remark.trim());
+        e.setAccountId(accountId);
+        e.setTransferDir(dir);
+        e.setCreatedBy(userId);
+        e.setCreatedAt(now());
+        return ledgerRepository.save(e);
+    }
+
+    /** 记账挂账户：accountId 非空时校验账户存在且属于本厨房，返回账户 id；未传返回 null（不挂账户）。 */
+    private Long validAccount(Long kitchenId, Long accountId) {
+        if (accountId == null) {
+            return null;
+        }
+        Account a = accountRepository.findByIdAndDeleted(accountId, 0)
+                .orElseThrow(() -> new BusinessException(404, "账户不存在"));
+        if (!a.getKitchenId().equals(kitchenId)) {
+            throw new BusinessException(403, "账户不属于本厨房");
+        }
+        return a.getId();
     }
 
     /**
@@ -271,6 +345,9 @@ public class LedgerService {
         long income = 0, refund = 0, expense = 0;
         Map<String, long[]> byDay = new LinkedHashMap<>();
         for (LedgerEntry e : entries) {
+            if (LedgerEntry.TYPE_TRANSFER.equals(e.getType())) {
+                continue; // 转账是钱包间搬家，不是收支：四口径与日序列全部不计
+            }
             long amount = e.getAmountFen();
             if (LedgerEntry.TYPE_INCOME.equals(e.getType())) {
                 income += amount;
@@ -482,7 +559,11 @@ public class LedgerService {
     public record ManualEntryReq(String type, String category,
                                  Long amountFen, String date, String remark,
                                  List<SubItemReq> subItems,
-                                 String imageUrl, String paymentMethod, String currency) {}
+                                 String imageUrl, String paymentMethod, String currency,
+                                 Long accountId) {}
+
+    public record TransferReq(Long fromAccountId, Long toAccountId,
+                              Long amountFen, String date, String remark) {}
 
     public record SubItemReq(String name, Long amountFen) {}
 
