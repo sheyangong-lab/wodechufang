@@ -325,6 +325,16 @@ function goCategories() {
   uni.navigateTo({ url: '/pages/ledger/categories' });
 }
 
+/** Blob → base64 dataURL（给原生桥保存用） */
+function blobToDataUrl(b: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = () => reject(new Error('read fail'));
+    r.readAsDataURL(b);
+  });
+}
+
 function exportPdf() {
   if (!kitchenId.value) return;
   uni.showLoading({ title: '生成PDF…' });
@@ -336,7 +346,21 @@ function exportPdf() {
       if (!r.ok) throw new Error('' + r.status);
       return r.blob();
     })
-    .then((b) => {
+    .then(async (b) => {
+      const cap = (globalThis as Record<string, any>).Capacitor;
+      const bridge = cap?.Plugins?.AppBridge;
+      if (cap?.isNativePlatform?.() && bridge?.saveFile) {
+        // 安卓 WebView 不支持 blob 下载，走原生桥存入下载目录
+        const dataUrl = await blobToDataUrl(b);
+        await bridge.saveFile({
+          dataUrl,
+          name: `共享厨房账单-${month.value}.pdf`,
+          mime: 'application/pdf',
+        });
+        uni.hideLoading();
+        uni.showToast({ title: '已保存到 Download/共享厨房', icon: 'none' });
+        return;
+      }
       uni.hideLoading();
       const a = document.createElement('a');
       a.href = URL.createObjectURL(b);

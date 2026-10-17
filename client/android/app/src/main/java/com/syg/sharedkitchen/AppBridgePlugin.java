@@ -151,6 +151,61 @@ public class AppBridgePlugin extends Plugin {
         t.start();
     }
 
+    /**
+     * 保存任意文件到系统下载目录（Download/共享厨房）。安卓 WebView 不支持
+     * blob: URL + a.click() 下载，PDF 导出等需经此桥落盘。
+     */
+    @PluginMethod
+    public void saveFile(PluginCall call) {
+        String dataUrl = call.getString("dataUrl", "");
+        String name = call.getString("name", "file.bin");
+        String mime = call.getString("mime", "application/octet-stream");
+        if (!dataUrl.contains(",")) {
+            call.reject("文件数据无效");
+            return;
+        }
+        Thread t = new Thread(() -> {
+            try {
+                byte[] bytes = android.util.Base64.decode(
+                        dataUrl.split(",", 2)[1], android.util.Base64.DEFAULT);
+                android.net.Uri uri;
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    android.content.ContentResolver resolver = getContext().getContentResolver();
+                    android.content.ContentValues values = new android.content.ContentValues();
+                    values.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name);
+                    values.put(android.provider.MediaStore.Downloads.MIME_TYPE, mime);
+                    values.put(android.provider.MediaStore.Downloads.RELATIVE_PATH,
+                            android.os.Environment.DIRECTORY_DOWNLOADS + "/共享厨房");
+                    uri = resolver.insert(
+                            android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                    if (uri == null) {
+                        call.reject("保存失败");
+                        return;
+                    }
+                    try (OutputStream os = resolver.openOutputStream(uri)) {
+                        os.write(bytes);
+                    }
+                } else {
+                    File dir = new File(android.os.Environment.getExternalStoragePublicDirectory(
+                            android.os.Environment.DIRECTORY_DOWNLOADS), "共享厨房");
+                    if (!dir.exists()) dir.mkdirs();
+                    File out = new File(dir, name);
+                    try (FileOutputStream fos = new FileOutputStream(out)) {
+                        fos.write(bytes);
+                    }
+                    uri = android.net.Uri.fromFile(out);
+                    Intent scan = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, uri);
+                    getContext().sendBroadcast(scan);
+                }
+                call.resolve();
+            } catch (Exception e) {
+                call.reject("保存失败: " + e.getMessage());
+            }
+        });
+        t.setDaemon(true);
+        t.start();
+    }
+
     /** 调起系统安装器。 */
     @PluginMethod
     public void installApk(PluginCall call) {
