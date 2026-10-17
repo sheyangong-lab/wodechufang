@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { theme } from '@/styles/theme';
 import { fridgeApi, UNIT_LABELS } from '@/api/fridge';
-import type { FridgeCategoryView } from '@/api/fridge';
+import type { FridgeCategoryView, FridgeStorage } from '@/api/fridge';
 import { fullUrl } from '@/api/dish';
 import { chooseOneImage, processCutout } from '@/utils/image-pick';
 import type { CutoutKind } from '@/utils/image-pick';
@@ -19,6 +19,7 @@ interface Draft {
   shelfLifeValue: string;
   shelfLifeUnit: 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
   quantity: string;
+  storage: FridgeStorage;
   remark: string;
 }
 
@@ -26,6 +27,10 @@ const kitchenId = ref<number | null>(getCurrentKitchenId());
 const categories = ref<FridgeCategoryView[]>([]);
 const drafts = ref<Draft[]>([newDraft()]);
 const submitting = ref(false);
+
+/** 存放位置：上冷藏 / 下冷冻（与冰箱页两层对应） */
+const storages: FridgeStorage[] = ['FRIDGE', 'FREEZER'];
+const STORAGE_NAME: Record<FridgeStorage, string> = { FRIDGE: '冷藏', FREEZER: '冷冻' };
 
 function newDraft(): Draft {
   return {
@@ -36,6 +41,7 @@ function newDraft(): Draft {
     shelfLifeValue: '7',
     shelfLifeUnit: 'DAY',
     quantity: '',
+    storage: 'FRIDGE',
     remark: '',
   };
 }
@@ -171,6 +177,7 @@ function submit() {
         shelfLifeValue: Number(d.shelfLifeValue) || 1,
         shelfLifeUnit: d.shelfLifeUnit,
         quantity: d.quantity || undefined,
+        storage: d.storage,
         remark: d.remark || undefined,
       }))
     )
@@ -231,6 +238,19 @@ function submit() {
             hover-class="press-dim"
             @tap="d.shelfLifeUnit = unit"
           >{{ UNIT_LABELS[unit] }}</text>
+        </view>
+      </view>
+      <view class="row">
+        <text class="label">存放位置</text>
+        <view class="units">
+          <text
+            v-for="st in storages"
+            :key="st"
+            class="unit"
+            :class="{ on: d.storage === st }"
+            hover-class="press-dim"
+            @tap="d.storage = st"
+          >{{ STORAGE_NAME[st] }}</text>
         </view>
       </view>
       <view class="row">

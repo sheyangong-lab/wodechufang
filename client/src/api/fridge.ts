@@ -1,6 +1,8 @@
 import { request } from '@/utils/request';
 
 export type FridgeState = 'fresh' | 'expiring' | 'expired';
+/** 存放位置：FRIDGE=冷藏（上层） / FREEZER=冷冻（下层） */
+export type FridgeStorage = 'FRIDGE' | 'FREEZER';
 
 export interface FridgeItemView {
   id: number;
@@ -12,6 +14,7 @@ export interface FridgeItemView {
   shelfLifeValue: number;
   shelfLifeUnit: 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
   quantity: string;
+  storage: FridgeStorage;
   remark: string;
   expireDate: string;
   daysLeft: number;
@@ -53,6 +56,11 @@ export const UNIT_LABELS: Record<string, string> = {
   YEAR: '年',
 };
 
+export const STORAGE_LABELS: Record<string, string> = {
+  FRIDGE: '冷藏',
+  FREEZER: '冷冻',
+};
+
 export function expiryText(item: FridgeItemView): string {
   if (item.daysLeft < 0) return `已过期${-item.daysLeft}天`;
   if (item.daysLeft === 0) return '今天过期';
@@ -80,7 +88,7 @@ export const fridgeApi = {
     kitchenId: number,
     items: {
       name: string; categoryId?: number | null; imageUrl?: string | null; producedDate?: string | null;
-      shelfLifeValue: number; shelfLifeUnit: string; quantity?: string; remark?: string;
+      shelfLifeValue: number; shelfLifeUnit: string; quantity?: string; storage?: string; remark?: string;
     }[]
   ) =>
     request<FridgeItemView[]>({
@@ -94,7 +102,7 @@ export const fridgeApi = {
   },
   updateItem: (kitchenId: number, itemId: number, data: {
     name?: string; categoryId?: number | null; producedDate?: string | null;
-    shelfLifeValue?: number; shelfLifeUnit?: string; quantity?: string; remark?: string;
+    shelfLifeValue?: number; shelfLifeUnit?: string; quantity?: string; storage?: string; remark?: string;
   }) =>
     request<FridgeItemView>({
       url: `/api/kitchens/${kitchenId}/fridge/items/${itemId}`, method: 'PUT', data,

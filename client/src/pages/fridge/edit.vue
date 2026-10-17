@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { theme } from '@/styles/theme';
 import { fridgeApi, UNIT_LABELS } from '@/api/fridge';
-import type { FridgeCategoryView, FridgeItemView } from '@/api/fridge';
+import type { FridgeCategoryView, FridgeItemView, FridgeStorage } from '@/api/fridge';
 import { fullUrl } from '@/api/dish';
 import { ensureKitchenId, getCurrentKitchenId } from '@/api/kitchen';
 import { onLoad } from '@dcloudio/uni-app';
@@ -22,7 +22,12 @@ const producedDate = ref('');
 const shelfLifeValue = ref('7');
 const shelfLifeUnit = ref<'DAY' | 'WEEK' | 'MONTH' | 'YEAR'>('DAY');
 const quantity = ref('');
+const storage = ref<FridgeStorage>('FRIDGE');
 const remark = ref('');
+
+/** 存放位置：上冷藏 / 下冷冻（与冰箱页两层对应） */
+const storages: FridgeStorage[] = ['FRIDGE', 'FREEZER'];
+const STORAGE_NAME: Record<FridgeStorage, string> = { FRIDGE: '冷藏', FREEZER: '冷冻' };
 
 const units: ('DAY' | 'WEEK' | 'MONTH' | 'YEAR')[] = ['DAY', 'WEEK', 'MONTH', 'YEAR'];
 
@@ -55,6 +60,7 @@ async function loadItem() {
     shelfLifeValue.value = String(item.shelfLifeValue);
     shelfLifeUnit.value = item.shelfLifeUnit;
     quantity.value = item.quantity;
+    storage.value = item.storage === 'FREEZER' ? 'FREEZER' : 'FRIDGE';
     remark.value = item.remark;
   } catch {
     // toast 已统一弹出
@@ -151,6 +157,7 @@ function submit() {
       shelfLifeValue: Number(shelfLifeValue.value) || 1,
       shelfLifeUnit: shelfLifeUnit.value,
       quantity: quantity.value.trim(),
+      storage: storage.value,
       remark: remark.value.trim(),
     })
     .then(() => {
@@ -204,6 +211,19 @@ function submit() {
             hover-class="press-dim"
             @tap="shelfLifeUnit = unit"
           >{{ UNIT_LABELS[unit] }}</text>
+        </view>
+      </view>
+      <view class="row">
+        <text class="label">存放位置</text>
+        <view class="units">
+          <text
+            v-for="st in storages"
+            :key="st"
+            class="unit"
+            :class="{ on: storage === st }"
+            hover-class="press-dim"
+            @tap="storage = st"
+          >{{ STORAGE_NAME[st] }}</text>
         </view>
       </view>
       <view class="row">
