@@ -97,6 +97,24 @@ def draw_fridge(color) -> Image.Image:
     return img
 
 
+def draw_hub(color) -> Image.Image:
+    """中枢：四宫格仪表盘（与四宫格首页呼应），左上格实填做视觉锚点。"""
+    img = canvas()
+    d = ImageDraw.Draw(img)
+    w = stroke(0.045)
+    r = u(0.07)
+    cells = [
+        (u(0.13), u(0.13), u(0.44), u(0.44)),  # 左上（实填）
+        (u(0.56), u(0.13), u(0.87), u(0.44)),
+        (u(0.13), u(0.56), u(0.44), u(0.87)),
+        (u(0.56), u(0.56), u(0.87), u(0.87)),
+    ]
+    d.rounded_rectangle(cells[0], radius=r, fill=color)
+    for cell in cells[1:]:
+        d.rounded_rectangle(cell, radius=r, outline=color, width=w)
+    return img
+
+
 def draw_person(color) -> Image.Image:
     img = canvas()
     d = ImageDraw.Draw(img)
@@ -176,6 +194,7 @@ def main():
     print("生成图标 →", os.path.normpath(OUT))
 
     drawers = {
+        "hub": draw_hub,
         "kitchen": draw_chef_hat_mask,
         "order": draw_receipt,
         "ledger": draw_ledger,
