@@ -28,6 +28,8 @@ public class RecurringBillService {
     private static final int MAX_CATCHUP_CYCLES = 1200;
     /** 扫描防重入：定时任务与手动触发重叠时后来者直接跳过。 */
     private final java.util.concurrent.atomic.AtomicBoolean scanning = new java.util.concurrent.atomic.AtomicBoolean(false);
+    /** 单账单补账互斥锁：scanOnce 与建单/改单立即补账共用（进程内，单机部署够用）。 */
+    private static final Object SCAN_LOCK = new Object();
 
     private final RecurringBillRepository billRepository;
     private final LedgerEntryRepository ledgerRepository;
@@ -56,7 +58,7 @@ public class RecurringBillService {
                 .stream().map(this::toView).toList();
     }
 
-    @Transactional
+    /** 建单：校验落库（独立事务）后，起始日已到则锁内立即补账（见 catchUpNow）。 */
     public BillView create(Long userId, Long kitchenId, BillReq req) {
         requireMember(kitchenId, userId);
         RecurringBill b = new RecurringBill();
@@ -67,13 +69,12 @@ public class RecurringBillService {
         b.setCreatedAt(now());
         billRepository.save(b);
         if (b.getEnabled() == 1 && b.getNextDate().compareTo(today()) <= 0) {
-            catchUp(b); // 历史起始日/当天到账：建单即补账
+            catchUpNow(b.getId()); // 历史起始日/当天到账：建单即补账
         }
-        return toView(b);
+        return toView(billRepository.findById(b.getId()).orElse(b));
     }
 
-    /** 仅更新传入（非 null）字段；nextDate 提前到今天或以前且启用中则立即补账。 */
-    @Transactional
+    /** 仅更新传入（非 null）字段；更新落库后 nextDate 已到且启用中则锁内立即补账。 */
     public BillView update(Long userId, Long kitchenId, Long billId, BillReq req) {
         requireMember(kitchenId, userId);
         RecurringBill b = owned(kitchenId, billId);
@@ -83,9 +84,9 @@ public class RecurringBillService {
         }
         billRepository.save(b);
         if (b.getEnabled() == 1 && b.getNextDate().compareTo(today()) <= 0) {
-            catchUp(b);
+            catchUpNow(b.getId());
         }
-        return toView(b);
+        return toView(billRepository.findById(b.getId()).orElse(b));
     }
 
     @Transactional
@@ -99,7 +100,9 @@ public class RecurringBillService {
     /**
      * 全量扫描（定时任务/手动触发）：逐账单补账，返回本次生成的流水条数。
      * 每账单独立事务（TransactionTemplate），单条失败记日志继续，不影响其他账单与其他厨房。
-     * scanning 防重入：定时任务与手动触发重叠时后来者直接跳过（避免同账单双补重复入账）。
+     * 单账单处理段持 SCAN_LOCK 且事务提交发生在锁内（见 catchUpFresh），
+     * 与建单/改单的立即补账路径互斥——同账单不可能双补重复入账。
+     * scanning 防重入：定时任务与手动触发重叠时后来者直接跳过。
      */
     public int scanOnce() {
         if (!scanning.compareAndSet(false, true)) {
@@ -113,7 +116,10 @@ public class RecurringBillService {
                     continue;
                 }
                 try {
-                    Integer posted = transactionTemplate.execute(status -> catchUp(b));
+                    Integer posted;
+                    synchronized (SCAN_LOCK) {
+                        posted = transactionTemplate.execute(status -> catchUpFresh(b.getId()));
+                    }
                     if (posted != null) {
                         entries += posted;
                     }
@@ -128,8 +134,31 @@ public class RecurringBillService {
     }
 
     /**
-     * 单账单补账：while next_date <= today 逐周期生成流水并推进。
-     * 调用方保证事务（create/update 外层 @Transactional，scanOnce 走 TransactionTemplate）。
+     * 建单/改单后的立即补账：持 SCAN_LOCK 开独立事务补账，提交在锁内——
+     * 别的线程（scanOnce）拿到锁时必能读到已提交的最新 next_date，杜绝并发双补。
+     */
+    private void catchUpNow(Long billId) {
+        synchronized (SCAN_LOCK) {
+            transactionTemplate.executeWithoutResult(status -> catchUpFresh(billId));
+        }
+    }
+
+    /**
+     * 单账单补账（须在 SCAN_LOCK 内、调用方事务中执行）：重读账单最新状态
+     * （可能已被其他路径补过/停用/删除），未到期/不可补返回 0，否则 while 循环补账。
+     */
+    private int catchUpFresh(Long billId) {
+        RecurringBill b = billRepository.findById(billId).orElse(null);
+        if (b == null || b.getDeleted() != 0 || b.getEnabled() != 1
+                || b.getNextDate() == null || b.getNextDate().compareTo(today()) > 0) {
+            return 0;
+        }
+        return catchUp(b);
+    }
+
+    /**
+     * 单账单补账循环：while next_date <= today 逐周期生成流水并推进。
+     * 仅由 catchUpFresh 在 SCAN_LOCK 内、事务中调用；不做账单状态复核（调用方已重读校验）。
      */
     private int catchUp(RecurringBill b) {
         String today = today();
