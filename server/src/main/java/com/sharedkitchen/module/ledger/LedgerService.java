@@ -165,21 +165,42 @@ public class LedgerService {
         e.setAmountFen(cnyFen);
     }
 
-    /** 删除流水（账本独立，任何来源均可删）。 */
+    /** 删除流水（账本独立，任何来源均可删）；TRANSFER 删一行联动删配对行，两账户余额同时回滚。 */
     @Transactional
     public void deleteManual(Long userId, Long entryId) {
         LedgerEntry e = ledgerRepository.findById(entryId)
                 .orElseThrow(() -> new BusinessException(404, "流水不存在"));
         requireMember(e.getKitchenId(), userId);
+        if (LedgerEntry.TYPE_TRANSFER.equals(e.getType())) {
+            findTransferPair(e).ifPresent(ledgerRepository::delete);
+        }
         ledgerRepository.delete(e);
     }
 
-    /** 修改流水：类型/分类/金额/日期/备注/分项可改；kitchenId 取自原条目（防越权改别家）。 */
+    /**
+     * 转账配对行定位：transfer() 双行同事务共享 createdAt，按 厨房/类型/日期/金额/备注/createdAt/反向dir
+     * 精确匹配（排除自身）；多候选取 id 最大（最近一对）。未匹配（历史单行等）返回 empty，仅删当前行。
+     */
+    private java.util.Optional<LedgerEntry> findTransferPair(LedgerEntry e) {
+        String opposite = "in".equals(e.getTransferDir()) ? "out" : "in";
+        return ledgerRepository
+                .findByKitchenIdAndTypeAndDineDateAndAmountFenAndRemarkAndCreatedAtAndTransferDir(
+                        e.getKitchenId(), LedgerEntry.TYPE_TRANSFER, e.getDineDate(),
+                        e.getAmountFen(), e.getRemark(), e.getCreatedAt(), opposite)
+                .stream()
+                .filter(p -> !p.getId().equals(e.getId()))
+                .max(java.util.Comparator.comparing(LedgerEntry::getId));
+    }
+
+    /** 修改流水：类型/分类/金额/日期/备注/分项/账户可改；kitchenId 取自原条目（防越权改别家）；转账记录不支持编辑。 */
     @Transactional
     public LedgerEntryView updateManual(Long userId, Long entryId, ManualEntryReq req) {
         LedgerEntry e = ledgerRepository.findById(entryId)
                 .orElseThrow(() -> new BusinessException(404, "流水不存在"));
         requireMember(e.getKitchenId(), userId);
+        if (LedgerEntry.TYPE_TRANSFER.equals(e.getType())) {
+            throw new BusinessException("转账记录不支持编辑，可删除后重新发起");
+        }
         if (!LedgerEntry.TYPE_INCOME.equals(req.type())
                 && !LedgerEntry.TYPE_EXPENSE.equals(req.type())) {
             throw new BusinessException("类型只能是收入或支出");
@@ -189,9 +210,7 @@ public class LedgerService {
             throw new BusinessException("金额必须大于 0");
         }
         List<SubItemView> subItems = validSubItems(req.subItems(), req.amountFen());
-        boolean wasTransfer = LedgerEntry.TYPE_TRANSFER.equals(e.getType());
         e.setType(req.type());
-        e.setTransferDir(null); // transferDir 仅 TRANSFER 有效；类型一经改为收支即清方向
         e.setCategory(req.category() == null || req.category().isBlank() ? "其他" : req.category().trim());
         e.setAmountFen(req.amountFen());
         e.setSubItems(toSubItemsJson(subItems));
@@ -200,10 +219,7 @@ public class LedgerService {
         }
         e.setRemark(req.remark() == null ? "" : req.remark().trim());
         applyCurrencyAndExtras(e, req);
-        if (req.accountId() != null) { // 未传则保留原账户；转账流水禁止改账户
-            if (wasTransfer) {
-                throw new BusinessException("转账流水不允许修改账户");
-            }
+        if (req.accountId() != null) { // 未传则保留原账户
             e.setAccountId(validAccount(e.getKitchenId(), req.accountId()));
         }
         ledgerRepository.save(e);
@@ -234,14 +250,15 @@ public class LedgerService {
             throw new BusinessException("转出转入不能是同一账户");
         }
         String date = validDate(req.date());
-        // 双行：out 在 from，in 在 to；remark 前缀由调用方语义决定（存钱/取回/还款）
-        LedgerEntry out = baseTransfer(kitchenId, userId, req.amountFen(), date, req.remark(), from.getId(), "out");
-        LedgerEntry in = baseTransfer(kitchenId, userId, req.amountFen(), date, req.remark(), to.getId(), "in");
+        // 双行共享 createdAt：作为精确配对键，删除时据此成对回滚（见 deleteManual）
+        String t = now();
+        LedgerEntry out = baseTransfer(kitchenId, userId, req.amountFen(), date, req.remark(), from.getId(), "out", t);
+        LedgerEntry in = baseTransfer(kitchenId, userId, req.amountFen(), date, req.remark(), to.getId(), "in", t);
         return List.of(toView(out), toView(in));
     }
 
     private LedgerEntry baseTransfer(Long kitchenId, Long userId, Long amountFen, String date,
-                                     String remark, Long accountId, String dir) {
+                                     String remark, Long accountId, String dir, String createdAt) {
         LedgerEntry e = new LedgerEntry();
         e.setKitchenId(kitchenId);
         e.setType(LedgerEntry.TYPE_TRANSFER);
@@ -253,7 +270,7 @@ public class LedgerService {
         e.setAccountId(accountId);
         e.setTransferDir(dir);
         e.setCreatedBy(userId);
-        e.setCreatedAt(now());
+        e.setCreatedAt(createdAt);
         return ledgerRepository.save(e);
     }
 

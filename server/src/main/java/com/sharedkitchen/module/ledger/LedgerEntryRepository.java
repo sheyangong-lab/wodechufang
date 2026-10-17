@@ -20,6 +20,11 @@ public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, Long> 
 
     boolean existsByAccountId(Long accountId);
 
+    /** 转账配对行候选：transfer() 双行共享 createdAt，按此七元组可精确定位反向那一行。 */
+    List<LedgerEntry> findByKitchenIdAndTypeAndDineDateAndAmountFenAndRemarkAndCreatedAtAndTransferDir(
+            Long kitchenId, String type, String dineDate, Long amountFen,
+            String remark, String createdAt, String transferDir);
+
     /**
      * 各账户流水累计（账户余额推导）：
      * INCOME/REFUND 记 +amount；TRANSFER 入账（transfer_dir='in'）记 +amount；
