@@ -79,7 +79,7 @@ public class FridgeController {
 
     public record ItemUpdateReq(String name, Long categoryId, String producedDate,
                                 Integer shelfLifeValue, String shelfLifeUnit,
-                                String quantity, String remark) {}
+                                String quantity, String storage, String remark) {}
 
     /** 修改单个食材（左滑改数量/删除）。 */
     @org.springframework.web.bind.annotation.PutMapping("/items/{itemId}")
@@ -88,7 +88,8 @@ public class FridgeController {
             @RequestBody ItemUpdateReq req) {
         return ApiResponse.ok(fridgeService.updateItem(userId(request), kitchenId, itemId,
                 new FridgeService.ItemUpdateReq(req.name(), req.categoryId(), req.producedDate(),
-                        req.shelfLifeValue(), req.shelfLifeUnit(), req.quantity(), req.remark())));
+                        req.shelfLifeValue(), req.shelfLifeUnit(), req.quantity(), req.storage(),
+                        req.remark())));
     }
 
     /** 删除单个食材（软删）。 */

@@ -33,6 +33,32 @@ const stateDefs = computed(() => [
   { key: 'expired' as const, label: `已过期(${summary.value.expired})`, color: theme.danger },
 ]);
 
+// ===== 右侧双层冰箱：上冷藏 / 下冷冻，按食材 storage 归层 =====
+const activeCatName = computed(() =>
+  activeCatId.value == null
+    ? '全部食材'
+    : categories.value.find((c) => c.id === activeCatId.value)?.name || '分类食材'
+);
+
+const fridgeLayers = computed(() => [
+  {
+    key: 'FRIDGE' as const,
+    cls: 'cool',
+    label: '冷藏室',
+    icon: '❄',
+    list: items.value.filter((i) => i.storage !== 'FREEZER'),
+    emptyText: '冷藏室空着，放点蔬果蛋奶吧',
+  },
+  {
+    key: 'FREEZER' as const,
+    cls: 'frozen',
+    label: '冷冻室',
+    icon: '❄❄',
+    list: items.value.filter((i) => i.storage === 'FREEZER'),
+    emptyText: '冷冻室空着，肉类冻品放这里',
+  },
+]);
+
 onShow(() => {
   kitchenId.value = getCurrentKitchenId();
   if (!kitchenId.value) return;
@@ -319,44 +345,60 @@ function removeOne(i: FItem) {
           <text class="cat-manage" hover-class="press-dim" @tap="goCategories">类别管理</text>
         </view>
 
-        <!-- 食材列表 -->
-        <view class="list">
-          <view v-if="loading" class="list-tip"><text>加载中…</text></view>
-          <view v-else-if="items.length === 0" class="card empty">
-            <image class="empty-img" src="/static/icons/basket.png" mode="aspectFit" />
-            <text class="empty-tip">冰箱里空空的，放点食材吧</text>
+        <!-- 右侧冰箱：上冷藏下冷冻两层，点左侧分类后展示对应食材 -->
+        <view class="fridge">
+          <view class="fridge-head">
+            <text class="fridge-cat">{{ activeCatName }}</text>
+            <text class="fridge-total">{{ items.length }} 种</text>
           </view>
-          <view v-for="i in items" :key="i.id" class="swipe-cell">
-            <view class="swipe-actions">
-              <text class="swipe-btn edit" hover-class="press-dim" @tap.stop="openEdit(i)">编辑</text>
-              <text class="swipe-btn qty" hover-class="press-dim" @tap.stop="openQty(i)">改数量</text>
-              <text class="swipe-btn del" hover-class="press-dim" @tap.stop="removeOne(i)">删除</text>
-            </view>
-            <view
-              class="card item swipe-content"
-              :class="{ warning: i.state === 'expiring', danger: i.state === 'expired' }"
-              :style="contentStyle(i.id)"
-              @touchstart="onTouchStart($event, i.id)"
-              @touchmove="onTouchMove($event, i.id)"
-              @touchend="onTouchEnd(i.id)"
-              @touchcancel="onTouchEnd(i.id)"
-              @tap="onItemTap"
-            >
-            <view class="item-main">
-              <view class="item-head">
-                <text class="name">{{ i.name }}</text>
-                <text class="expire" :class="i.state">{{ expiryText(i) }}</text>
+
+          <view v-if="loading" class="layer-tip"><text>加载中…</text></view>
+          <template v-else>
+            <template v-for="(layer, li) in fridgeLayers" :key="layer.key">
+              <!-- 中梁：冷藏/冷冻之间的隔板造型 -->
+              <view v-if="li > 0" class="fridge-bar" />
+              <view class="layer" :class="layer.cls">
+                <view class="layer-head">
+                  <text class="layer-name">{{ layer.icon }} {{ layer.label }}</text>
+                  <text class="layer-count">{{ layer.list.length }} 种</text>
+                </view>
+                <view v-if="layer.list.length === 0" class="layer-empty">
+                  <text>{{ layer.emptyText }}</text>
+                </view>
+                <view v-for="i in layer.list" :key="i.id" class="swipe-cell">
+                  <view class="swipe-actions">
+                    <text class="swipe-btn edit" hover-class="press-dim" @tap.stop="openEdit(i)">编辑</text>
+                    <text class="swipe-btn qty" hover-class="press-dim" @tap.stop="openQty(i)">改数量</text>
+                    <text class="swipe-btn del" hover-class="press-dim" @tap.stop="removeOne(i)">删除</text>
+                  </view>
+                  <view
+                    class="card item swipe-content"
+                    :class="{ warning: i.state === 'expiring', danger: i.state === 'expired' }"
+                    :style="contentStyle(i.id)"
+                    @touchstart="onTouchStart($event, i.id)"
+                    @touchmove="onTouchMove($event, i.id)"
+                    @touchend="onTouchEnd(i.id)"
+                    @touchcancel="onTouchEnd(i.id)"
+                    @tap="onItemTap"
+                  >
+                  <view class="item-main">
+                    <view class="item-head">
+                      <text class="name">{{ i.name }}</text>
+                      <text class="expire" :class="i.state">{{ expiryText(i) }}</text>
+                    </view>
+                    <text class="line">剩余数量：{{ i.quantity || '未填' }}</text>
+                    <text v-if="i.remark" class="line">注：{{ i.remark }}</text>
+                    <view class="item-foot">
+                      <text class="meta">产自：{{ i.producedDate || '—' }}　保质期：{{ i.shelfLifeValue }}{{ UNIT_LABELS[i.shelfLifeUnit] }}</text>
+                      <text class="match" hover-class="press-dim" @tap="goMatch(i)">匹配菜谱</text>
+                    </view>
+                  </view>
+                  <image v-if="i.imageUrl" class="item-photo" :src="fullUrl(i.imageUrl)" mode="aspectFit" @tap.stop="previewPhoto(i.imageUrl)" />
+                  </view>
+                </view>
               </view>
-              <text class="line">剩余数量：{{ i.quantity || '未填' }}</text>
-              <text v-if="i.remark" class="line">注：{{ i.remark }}</text>
-              <view class="item-foot">
-                <text class="meta">产自：{{ i.producedDate || '—' }}　保质期：{{ i.shelfLifeValue }}{{ UNIT_LABELS[i.shelfLifeUnit] }}</text>
-                <text class="match" hover-class="press-dim" @tap="goMatch(i)">匹配菜谱</text>
-              </view>
-            </view>
-            <image v-if="i.imageUrl" class="item-photo" :src="fullUrl(i.imageUrl)" mode="aspectFit" @tap.stop="previewPhoto(i.imageUrl)" />
-            </view>
-          </view>
+            </template>
+          </template>
         </view>
       </view>
 
@@ -460,8 +502,48 @@ function removeOne(i: FItem) {
 .cat.active { background: v-bind('theme.primaryLight'); color: v-bind('theme.primaryBtn'); font-weight: 600; }
 .cat-manage { font-size: 24rpx; color: v-bind('theme.primaryBtn'); text-align: center; padding: 6rpx 0; }
 
-.list { flex: 1; min-width: 0; }
-.list-tip { padding: 40rpx 0; text-align: center; font-size: 24rpx; color: v-bind('theme.sub'); }
+/* ===== 右侧双层冰箱 ===== */
+.fridge {
+  flex: 1; min-width: 0;
+  background: v-bind('theme.card');
+  border: 4rpx solid #cfdce8;
+  border-radius: 28rpx;
+  padding: 18rpx 18rpx 22rpx;
+  box-sizing: border-box;
+  box-shadow: 0 4rpx 16rpx rgba(150, 180, 210, 0.18);
+}
+.fridge-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6rpx 8rpx 16rpx;
+}
+.fridge-cat { font-size: 26rpx; font-weight: 600; color: v-bind('theme.title'); }
+.fridge-total { font-size: 22rpx; color: v-bind('theme.sub'); }
+/* 冷藏/冷冻之间的中梁（隔板造型） */
+.fridge-bar {
+  height: 16rpx; border-radius: 8rpx; margin: 18rpx 0;
+  background: linear-gradient(180deg, #e8eef4, #c9d6e2);
+  box-shadow: 0 2rpx 6rpx rgba(120, 150, 180, 0.25);
+}
+.layer {
+  border-radius: 18rpx;
+  padding: 16rpx;
+  min-height: 220rpx;
+  border: 2rpx solid #d5e3ee;
+  box-sizing: border-box;
+}
+.layer.cool { background: rgba(140, 190, 235, 0.10); }
+.layer.frozen { background: rgba(110, 170, 230, 0.16); }
+.layer-head { display: flex; align-items: center; justify-content: space-between; padding: 2rpx 4rpx 12rpx; }
+.layer-name { font-size: 26rpx; font-weight: 600; color: #3f7cb4; }
+.layer.frozen .layer-name { color: #2f6ba0; }
+.layer-count { font-size: 22rpx; color: v-bind('theme.sub'); }
+.layer-empty { padding: 60rpx 0; text-align: center; font-size: 24rpx; color: v-bind('theme.sub'); }
+.layer-tip { padding: 60rpx 0; text-align: center; font-size: 24rpx; color: v-bind('theme.sub'); }
+
+/* 层内食材卡紧凑化 */
+.layer .item { padding: 16rpx 20rpx; }
+.layer .item-photo { width: 96rpx; height: 96rpx; }
+.layer .swipe-cell { margin-bottom: 12rpx; }
 .empty { padding: 70rpx 0; display: flex; flex-direction: column; align-items: center; gap: 14rpx; }
 .empty.big { margin-top: 20vh; padding: 70rpx 0; }
 .empty-img { width: 150rpx; height: 150rpx; }

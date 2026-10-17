@@ -130,6 +130,7 @@ public class FridgeService {
             item.setShelfLifeValue(req.shelfLifeValue());
             item.setShelfLifeUnit(validUnit(req.shelfLifeUnit()));
             item.setQuantity(req.quantity() == null ? "" : req.quantity().trim());
+            item.setStorage(validStorage(req.storage()));
             item.setRemark(req.remark() == null ? "" : req.remark().trim());
             item.setCreatedAt(now());
             itemRepository.save(item);
@@ -170,6 +171,9 @@ public class FridgeService {
         }
         if (req.quantity() != null) {
             item.setQuantity(req.quantity().trim());
+        }
+        if (req.storage() != null) {
+            item.setStorage(validStorage(req.storage()));
         }
         if (req.remark() != null) {
             item.setRemark(req.remark().trim());
@@ -343,7 +347,7 @@ public class FridgeService {
         String state = daysLeft < 0 ? "expired" : daysLeft <= EXPIRING_DAYS ? "expiring" : "fresh";
         return new FridgeItemView(i.getId(), i.getKitchenId(), i.getCategoryId(), i.getName(),
                 i.getImageUrl(), i.getProducedDate(), i.getShelfLifeValue(), i.getShelfLifeUnit(),
-                i.getQuantity(), i.getRemark(), expire.toString(), daysLeft, state);
+                i.getQuantity(), i.getStorage(), i.getRemark(), expire.toString(), daysLeft, state);
     }
 
     private long unitDays(String unit, Integer value) {
@@ -372,6 +376,12 @@ public class FridgeService {
             case FridgeItem.UNIT_YEAR -> FridgeItem.UNIT_YEAR;
             default -> FridgeItem.UNIT_DAY;
         };
+    }
+
+    /** 存放位置校验：非 FREEZER 一律按冷藏处理 */
+    private String validStorage(String storage) {
+        return FridgeItem.STORAGE_FREEZER.equals(storage)
+                ? FridgeItem.STORAGE_FREEZER : FridgeItem.STORAGE_FRIDGE;
     }
 
     private LocalDate parseDate(String date) {
@@ -409,15 +419,15 @@ public class FridgeService {
 
     public record ItemReq(String name, Long categoryId, String imageUrl, String producedDate,
                           Integer shelfLifeValue, String shelfLifeUnit,
-                          String quantity, String remark) {}
+                          String quantity, String storage, String remark) {}
 
     public record ItemUpdateReq(String name, Long categoryId, String producedDate,
                                 Integer shelfLifeValue, String shelfLifeUnit,
-                                String quantity, String remark) {}
+                                String quantity, String storage, String remark) {}
 
     public record FridgeItemView(Long id, Long kitchenId, Long categoryId, String name,
                                  String imageUrl, String producedDate, Integer shelfLifeValue,
-                                 String shelfLifeUnit, String quantity, String remark,
+                                 String shelfLifeUnit, String quantity, String storage, String remark,
                                  String expireDate, int daysLeft, String state) {}
 
     public record FridgeCategoryView(Long id, String name) {}

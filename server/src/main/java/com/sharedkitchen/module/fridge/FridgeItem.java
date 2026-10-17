@@ -16,6 +16,10 @@ public class FridgeItem {
     public static final String UNIT_MONTH = "MONTH";
     public static final String UNIT_YEAR = "YEAR";
 
+    /** 存放位置：FRIDGE=冷藏（上层） / FREEZER=冷冻（下层） */
+    public static final String STORAGE_FRIDGE = "FRIDGE";
+    public static final String STORAGE_FREEZER = "FREEZER";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -42,6 +46,10 @@ public class FridgeItem {
     /** 数量+单位文本，如 100g / 3个 */
     @Column(nullable = false)
     private String quantity = "";
+
+    /** 存放位置：FRIDGE=冷藏（上层） / FREEZER=冷冻（下层） */
+    @Column(nullable = false, length = 8)
+    private String storage = STORAGE_FRIDGE;
 
     /** 食材照片（/files/ 相对路径），拍照或相册上传 */
     @Column(name = "image_url", nullable = false)
@@ -72,6 +80,8 @@ public class FridgeItem {
     public void setShelfLifeUnit(String shelfLifeUnit) { this.shelfLifeUnit = shelfLifeUnit; }
     public String getQuantity() { return quantity; }
     public void setQuantity(String quantity) { this.quantity = quantity; }
+    public String getStorage() { return storage; }
+    public void setStorage(String storage) { this.storage = storage; }
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
     public String getRemark() { return remark; }
