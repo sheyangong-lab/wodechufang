@@ -1,6 +1,10 @@
 {
   "pages": [
     {
+      "path": "pages/hub/hub",
+      "style": { "navigationBarTitleText": "家庭中枢", "navigationBarBackgroundColor": "#FFF8F2", "navigationBarTextStyle": "black" }
+    },
+    {
       "path": "pages/kitchen/kitchen",
       "style": { "navigationBarTitleText": "厨房", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
     },
