@@ -7,7 +7,6 @@ import { getCurrentKitchenId, loadKitchenCache } from '@/api/kitchen';
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import ActionSheet from '@/components/action-sheet.vue';
-import CustomTabbar from '@/components/custom-tabbar.vue';
 import CalendarPicker from '@/components/calendar-picker.vue';
 
 const kitchenId = ref<number | null>(getCurrentKitchenId());
@@ -212,7 +211,6 @@ function act(o: OrderView, action: 'complete' | 'refund-request' | 'refund-appro
     />
   
         </view>
-    <CustomTabbar current="orders" />
   </view>
 </template>
 

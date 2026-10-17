@@ -1,9 +1,9 @@
 <script setup lang="ts">
 /**
- * 自定义底部导航（6 个入口）。
- * uni-app 原生 tabBar 上限 5 个，要加「食本」只能自绘：App 启动时
- * uni.hideTabBar() 隐藏原生条，每个 tab 页底部放本组件。
- * 原 5 个 tab 页仍走 switchTab（原生隐藏不影响跳转），食本用 redirectTo。
+ * 自定义底部导航（5 个入口：中枢/账本/冰箱/菜谱/我）。
+ * uni-app 原生 tabBar 仅作兜底注册（pages.json 与此处保持一致），
+ * App 启动时 uni.hideTabBar() 隐藏原生条，每个 tab 页底部放本组件，
+ * 跳转统一走 switchTab。订单/食本不再是 tab，分别从中枢/菜谱页与「我」页进入。
  */
 import { theme } from '@/styles/theme';
 
@@ -19,11 +19,10 @@ interface TabDef {
 }
 
 const tabs: TabDef[] = [
-  { key: 'kitchen', text: '厨房', icon: '/static/icons/pan.png', iconActive: '/static/icons/pan-active.png', path: '/pages/kitchen/kitchen', isTab: true },
-  { key: 'orders', text: '订单', icon: '/static/icons/tab-order.png', iconActive: '/static/icons/tab-order-active.png', path: '/pages/order/order', isTab: true },
+  { key: 'hub', text: '中枢', icon: '/static/icons/tab-hub.png', iconActive: '/static/icons/tab-hub-active.png', path: '/pages/hub/hub', isTab: true },
   { key: 'ledger', text: '账本', icon: '/static/icons/tab-ledger.png', iconActive: '/static/icons/tab-ledger-active.png', path: '/pages/ledger/ledger', isTab: true },
   { key: 'fridge', text: '冰箱', icon: '/static/icons/tab-fridge.png', iconActive: '/static/icons/tab-fridge-active.png', path: '/pages/fridge/fridge', isTab: true },
-  { key: 'foodbook', text: '食本', icon: '/static/icons/tab-book.png', iconActive: '/static/icons/tab-book-active.png', path: '/pages/foodbook/foodbook', isTab: false },
+  { key: 'kitchen', text: '菜谱', icon: '/static/icons/pan.png', iconActive: '/static/icons/pan-active.png', path: '/pages/kitchen/kitchen', isTab: true },
   { key: 'me', text: '我', icon: '/static/icons/tab-me.png', iconActive: '/static/icons/tab-me-active.png', path: '/pages/profile/profile', isTab: true },
 ];
 

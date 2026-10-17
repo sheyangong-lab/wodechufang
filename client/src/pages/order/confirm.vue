@@ -50,7 +50,8 @@ function submit() {
     .then(() => {
       cart.clear();
       uni.showToast({ title: '下单成功，等主账号开灶！', icon: 'none' });
-      setTimeout(() => uni.switchTab({ url: '/pages/order/order' }), 900);
+      // 订单页已去 tab 化，redirectTo 顶替确认页进入订单列表
+      setTimeout(() => uni.redirectTo({ url: '/pages/order/order' }), 900);
     })
     .finally(() => (submitting.value = false));
 }

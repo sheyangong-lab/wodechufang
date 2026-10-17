@@ -117,6 +117,10 @@ function goSync() {
   uni.navigateTo({ url: '/pages/sync/sync' });
 }
 
+function goFoodbook() {
+  uni.navigateTo({ url: '/pages/foodbook/foodbook' });
+}
+
 function goLogin() {
   uni.navigateTo({ url: '/pages/login/login' });
 }
@@ -262,6 +266,13 @@ function onLogout() {
 
     <!-- 设置 -->
     <view class="card notice-wrap">
+      <view class="notice-row" hover-class="press-bg" @tap="goFoodbook">
+        <view class="row-with-icon">
+          <image class="row-icon" src="/static/icons/tab-book.png" mode="aspectFit" />
+          <text class="notice">📖 我的食本</text>
+        </view>
+        <text class="chev">›</text>
+      </view>
       <view class="notice-row" hover-class="press-bg" @tap="checkUpdate">
         <view class="row-with-icon">
           <image class="row-icon" src="/static/icons/grid-chart.png" mode="aspectFit" />

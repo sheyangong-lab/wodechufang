@@ -167,7 +167,6 @@ const addItems: SheetItem[] = [
   { key: 'manual', title: '手动添加', desc: '手动记录拿手菜做法与技巧' },
   { key: 'clone', title: '克隆菜谱', desc: '复制厨房码，快速复刻同款菜单' },
   { key: 'import', title: '快捷导入', desc: '复制链接，快速导入菜谱' },
-  { key: 'square', title: '广场偷菜', desc: '广场上百万菜谱供你选择', badge: '推荐' },
   { key: 'batch', title: '批量添加', desc: '快速进行批量手动添加' },
 ];
 
@@ -175,10 +174,8 @@ function onAddSelect(key: string) {
   addSheetVisible.value = false;
   if (key === 'manual') {
     uni.navigateTo({ url: '/pages/dish/edit' });
-  } else if (key === 'square') {
-    uni.navigateTo({ url: '/pages/square/square' });
   } else if (key === 'clone') {
-    uni.navigateTo({ url: '/pages/square/square' });
+    uni.showToast({ title: '克隆菜谱：广场已下线，功能调整中', icon: 'none' });
   } else if (key === 'import') {
     uni.showToast({ title: '快捷导入：外部链接抓取不可控，暂不开发', icon: 'none' });
   } else {
@@ -198,6 +195,18 @@ function goMembers() {
   if (detail.value) {
     uni.navigateTo({ url: `/pages/kitchen/members?id=${detail.value.kitchen.id}` });
   }
+}
+
+function goOrders() {
+  uni.navigateTo({ url: '/pages/order/order' });
+}
+
+function goBasket() {
+  uni.navigateTo({ url: '/pages/basket/basket' });
+}
+
+function goPlan() {
+  uni.navigateTo({ url: '/pages/plan/plan' });
 }
 
 function copyCode() {
@@ -269,6 +278,13 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
           <image class="qr" src="/static/icons/qr.png" mode="aspectFit" hover-class="press-dim" @tap="copyCode" />
         </view>
         <text class="announce">公告：{{ detail.kitchen.announcement || '暂无' }}</text>
+      </view>
+
+      <!-- 页头快捷入口：点单 / 买菜 / 排菜（订单不再是 tab，从这里进） -->
+      <view class="quick-row">
+        <text class="quick" hover-class="press-dim" @tap="goOrders">📋 点单</text>
+        <text class="quick" hover-class="press-dim" @tap="goBasket">🧺 买菜</text>
+        <text class="quick" hover-class="press-dim" @tap="goPlan">📅 排菜</text>
       </view>
 
       <!-- 点单 / 修改 Tab + 操作 -->
@@ -420,6 +436,11 @@ const emptyDishes = computed(() => !menuLoading.value && dishes.value.length ===
 .btn-main::after { border: none; }
 
 .kitchen-card { padding: 24rpx; }
+.quick-row { display: flex; gap: 16rpx; margin: 20rpx 0 0; }
+.quick {
+  flex: 1; text-align: center; font-size: 26rpx; color: v-bind('theme.primaryBtn');
+  border: 2rpx solid v-bind('theme.primaryBtn'); border-radius: 12rpx; padding: 12rpx 0;
+}
 .kitchen-head { display: flex; align-items: center; }
 .avatar {
   width: 96rpx; height: 96rpx; border-radius: 24rpx;

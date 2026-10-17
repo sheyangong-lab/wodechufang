@@ -490,7 +490,7 @@ async function exportPage() {
     />
 
         </view>
-    <CustomTabbar current="foodbook" />
+    <CustomTabbar current="me" />
   </view>
 </template>
 
