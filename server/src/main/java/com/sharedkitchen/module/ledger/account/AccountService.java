@@ -151,7 +151,8 @@ public class AccountService {
 
     // ---------- 内部 ----------
 
-    /** 新厨房首次访问时种子默认账户（V19 迁移只覆盖迁移时的存量厨房）。 */
+    /** 新厨房首次访问时种子默认账户（V19 迁移只覆盖迁移时的存量厨房）。
+     *  并发防护见 seed()：原子插入，两个并发首访也不会双插。 */
     private void ensureDefaults(Long kitchenId) {
         if (accountRepository.countByKitchenId(kitchenId) > 0) {
             return;
@@ -163,15 +164,9 @@ public class AccountService {
         seed(kitchenId, "存款", Account.TYPE_SAVING, 10, t);
     }
 
+    /** INSERT...WHERE NOT EXISTS 原子种子：同名（含软删）已存在时插 0 行。 */
     private void seed(Long kitchenId, String name, String type, int sort, String t) {
-        Account a = new Account();
-        a.setKitchenId(kitchenId);
-        a.setName(name);
-        a.setType(type);
-        a.setInitialFen(0L);
-        a.setSort(sort);
-        a.setCreatedAt(t);
-        accountRepository.save(a);
+        accountRepository.insertDefaultIfAbsent(kitchenId, name, type, sort, t);
     }
 
     /** 各账户流水累计（方向语义见类注释），一条聚合 JPQL 取回。 */

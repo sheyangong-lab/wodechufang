@@ -52,14 +52,15 @@ ALTER TABLE ledger_entries ADD COLUMN account_id INTEGER;
 ALTER TABLE ledger_entries ADD COLUMN transfer_dir TEXT;   -- 'in'|'out' 仅 TRANSFER
 
 -- 数据迁移1：每个厨房种子四个默认账户
+--   created_at 用 now() AT TIME ZONE 'UTC' 先折算 UTC 再格式化（now() 是 timestamptz，直接 to_char 会按会话时区取值，与 SQLite 版 datetime('now') 的 UTC 语义不一致）
 INSERT INTO accounts (kitchen_id, name, type, initial_fen, sort, created_at)
-SELECT id, '现金', 'DISPOSABLE', 0, 1, to_char(now(),'YYYY-MM-DD"T"HH24:MI:SS"Z"') FROM kitchens;
+SELECT id, '现金', 'DISPOSABLE', 0, 1, to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') FROM kitchens;
 INSERT INTO accounts (kitchen_id, name, type, initial_fen, sort, created_at)
-SELECT id, '微信', 'DISPOSABLE', 0, 2, to_char(now(),'YYYY-MM-DD"T"HH24:MI:SS"Z"') FROM kitchens;
+SELECT id, '微信', 'DISPOSABLE', 0, 2, to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') FROM kitchens;
 INSERT INTO accounts (kitchen_id, name, type, initial_fen, sort, created_at)
-SELECT id, '支付宝', 'DISPOSABLE', 0, 3, to_char(now(),'YYYY-MM-DD"T"HH24:MI:SS"Z"') FROM kitchens;
+SELECT id, '支付宝', 'DISPOSABLE', 0, 3, to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') FROM kitchens;
 INSERT INTO accounts (kitchen_id, name, type, initial_fen, sort, created_at)
-SELECT id, '存款', 'SAVING', 0, 10, to_char(now(),'YYYY-MM-DD"T"HH24:MI:SS"Z"') FROM kitchens;
+SELECT id, '存款', 'SAVING', 0, 10, to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') FROM kitchens;
 
 -- 数据迁移2：旧存钱罐存取记录折算人民币 → 存款账户的 TRANSFER 流水（期初保持0，余额由流水推导）
 --   HKD×0.92、USD×7.24 折算（与 FxService 默认一致）；CNY×1
