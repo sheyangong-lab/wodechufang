@@ -89,6 +89,12 @@ curl -s -o /tmp/smoke-ledger.xlsx "$BASE$XURL"
 SHEETS=$(python3 -c "import zipfile;print(len([n for n in zipfile.ZipFile('/tmp/smoke-ledger.xlsx').namelist() if 'worksheets/sheet' in n]))" 2>/dev/null || echo 0)
 [ "$SHEETS" = "3" ] && ok "Excel导出3 Sheet有效" || bad "Excel导出 (Sheet数=$SHEETS)"
 
+# 4.5 中枢聚合接口
+R=$(curl -s $BASE/api/kitchens/$KID/hub/overview -H "$HA")
+check "中枢总览-结余字段" "$R" '"balance"'
+check "中枢总览-冰箱字段" "$R" '"expiringNames"'
+check "中枢总览-买菜字段" "$R" '"pendingCount"'
+
 # 6. 冰箱: 三态/图片/匹配/临期
 TODAY=$(date +%F); AGO8=$(date -d "-8 days" +%F 2>/dev/null || date -v-8d +%F)
 R=$(curl -s -X POST $BASE/api/kitchens/$KID/fridge/items -H "$J" -H "$HA" -d '{"items":[{"name":"鸡蛋","imageUrl":"/files/smoke-egg.jpg","shelfLifeValue":2,"shelfLifeUnit":"DAY","quantity":"12个"},{"name":"牛奶","producedDate":"'"$AGO8"'","shelfLifeValue":7,"shelfLifeUnit":"DAY"}]}')
