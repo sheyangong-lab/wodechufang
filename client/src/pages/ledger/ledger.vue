@@ -484,21 +484,16 @@ function delEntry(e: LedgerEntryView) {
       <text class="arrow" hover-class="press-dim" @tap="nextMonth">›</text>
     </view>
 
-    <!-- 三卡汇总（人民币） -->
+    <!-- 汇总卡：收入 / 支出 / 存钱罐（人民币；存钱罐按所选货币折算，点击进管理弹窗） -->
     <view class="cards">
       <view v-for="c in cards" :key="c.label" class="card summary">
         <text class="s-label">{{ c.label }}</text>
         <text class="s-value" :style="{ color: c.color }">{{ money(c.value) }}</text>
       </view>
-    </view>
-
-    <!-- 存钱罐：只显示折算金额，点开设置货币与存取 -->
-    <view class="card save-card" hover-class="press-bg" @tap="openSavingManage">
-      <view class="save-main">
-        <text class="s-label">存钱罐</text>
-        <text class="save-big">{{ savingMoney(savingTotalCny()) }}</text>
+      <view class="card summary save-summary" hover-class="press-bg" @tap="openSavingManage">
+        <text class="s-label">存钱罐<text class="save-manage">管理 ›</text></text>
+        <text class="s-value save-value">{{ savingMoney(savingTotalCny()) }}</text>
       </view>
-      <text class="save-cur-chip">{{ CUR_NAME[displayCur] }} · 管理 ›</text>
     </view>
 
     <!-- 操作行 -->
@@ -685,13 +680,10 @@ function delEntry(e: LedgerEntryView) {
 .swipe-btn.del { background: v-bind('theme.danger'); }
 .swipe-content { position: relative; z-index: 2; will-change: transform; }
 
-.save-card { display: flex; align-items: center; justify-content: space-between; padding: 22rpx 28rpx; margin-bottom: 16rpx; }
-.save-big { font-size: 40rpx; font-weight: 700; color: v-bind('theme.title'); }
-.save-cur-chip {
-  font-size: 24rpx; color: v-bind('theme.primaryBtn');
-  border: 2rpx solid v-bind('theme.primaryBtn'); border-radius: 30rpx;
-  padding: 8rpx 20rpx;
-}
+/* 存钱罐并入汇总行第三卡：与收入/支出同规格，金额按所选货币折算 */
+.save-summary { cursor: pointer; }
+.save-manage { font-size: 20rpx; font-weight: 400; color: v-bind('theme.sub'); margin-left: 6rpx; }
+.save-value { color: v-bind('theme.primaryBtn'); font-size: 28rpx; }
 .save-mask {
   position: fixed; left: 0; right: 0; top: 0; bottom: 0;
   background: rgba(40, 32, 16, 0.5); z-index: 1400;
@@ -715,7 +707,7 @@ function delEntry(e: LedgerEntryView) {
 .save-item-name { font-size: 26rpx; color: v-bind('theme.title'); }
 .save-item-amt { font-size: 26rpx; color: v-bind('theme.success'); font-weight: 600; }
 .save-item-amt.wd { color: v-bind('theme.danger'); }
-.save-main { flex: 1; min-width: 0; }
+
 .save-balances { display: flex; gap: 18rpx; margin-top: 6rpx; flex-wrap: wrap; }
 .save-b { font-size: 28rpx; font-weight: 700; color: v-bind('theme.title'); }
 .save-b.muted { color: v-bind('theme.sub'); font-weight: 400; }

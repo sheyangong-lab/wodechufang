@@ -31,3 +31,10 @@ server/.env
 
 # 部署密钥
 /.env
+
+# 安卓构建产物
+client/android/.gradle/
+client/android/app/build/
+client/android/build/
+client/android/capacitor-cordova-android-plugins/build/
+client/android/local.properties

@@ -44,9 +44,8 @@ public class AutoRecordPlugin extends Plugin {
     private WindowManager windowManager;
     private ImageView floatingButton;
     private MediaProjectionManager projectionManager;
-    // 授权数据静态持有（复用免重复弹框）；截屏会话在 ScreenCaptureService（前台服务）
-    private static int lastResultCode = 0;
-    private static Intent lastResultData = null;
+    // 授权结果不再缓存复用：Android 14+ 同一 token 只能消费一次，
+    // 拿到后立刻交给 ScreenCaptureService 建立长驻会话（FGS 保活）
     private final Handler main = new Handler(Looper.getMainLooper());
     private final AtomicReference<PluginCall> pendingCall = new AtomicReference<>();
 
@@ -88,13 +87,11 @@ public class AutoRecordPlugin extends Plugin {
             return;
         }
         if (requestCode == REQ_PROJECTION && resultCode == Activity.RESULT_OK && data != null) {
-            lastResultCode = resultCode;
-            lastResultData = data;
-            // 先启动 FGS（必须），服务就绪后截一帧确认
-            startCaptureService();
+            // 授权 token 一次性消费：交给服务建立常驻会话并保活，成功后截一帧确认
+            startCaptureService(resultCode, data);
             Toast.makeText(getActivity().getApplicationContext(),
-                    "授权成功：以后点悬浮球直接截屏", Toast.LENGTH_SHORT).show();
-            main.postDelayed(() -> ScreenCaptureService.requestShot(), 900);
+                    "授权成功：截屏会话将一直保持，点悬浮球直接截屏", Toast.LENGTH_SHORT).show();
+            main.postDelayed(ScreenCaptureService::requestShot, 900);
         }
     }
 
@@ -191,9 +188,8 @@ public class AutoRecordPlugin extends Plugin {
                 notifyError(message);
             }
         });
-        // 已有授权数据 → 直接拉起前台服务建立会话（静默）
-        if (lastResultData != null) {
-            startCaptureService();
+        // 服务里已有长驻会话 → 直接复用截屏，绝不重复弹授权
+        if (ScreenCaptureService.hasSession()) {
             ScreenCaptureService.requestShot();
             return;
         }
@@ -201,23 +197,24 @@ public class AutoRecordPlugin extends Plugin {
             projectionManager = (MediaProjectionManager)
                     activity.getSystemService(Context.MEDIA_PROJECTION_SERVICE);
         }
-        // 首次：系统授权弹窗（选"共享整个屏幕"，仅此一次）
+        // 无会话（首次 / 进程重启 / 用户停止过）：系统授权弹窗，
+        // 选"共享整个屏幕"后会话保持，之后不再打扰
         startActivityForResult(null,
                 projectionManager.createScreenCaptureIntent(), REQ_PROJECTION);
     }
 
-    private void startCaptureService() {
+    private void startCaptureService(int resultCode, Intent data) {
         Activity activity = getActivity();
-        if (activity == null || lastResultData == null) {
+        if (activity == null) {
             return;
         }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 activity.startForegroundService(
-                        ScreenCaptureService.createIntent(activity, lastResultCode, lastResultData));
+                        ScreenCaptureService.createIntent(activity, resultCode, data));
             } else {
                 activity.startService(
-                        ScreenCaptureService.createIntent(activity, lastResultCode, lastResultData));
+                        ScreenCaptureService.createIntent(activity, resultCode, data));
             }
         } catch (Exception e) {
             notifyError("截屏服务启动失败: " + e.getMessage());
