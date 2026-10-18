@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { theme } from '@/styles/theme';
-import { ledgerApi } from '@/api/ledger';
-import type { LedgerEntryView, MonthSummary, SavingSummary } from '@/api/ledger';
+import { ledgerApi, fen } from '@/api/ledger';
+import type {
+  LedgerEntryView, MonthSummary, AccountView, AssetsView, BudgetView, SavingGoalView,
+} from '@/api/ledger';
 import { getCurrentKitchenId } from '@/api/kitchen';
 import { getApiBase } from '@/api/config';
 import { onShow } from '@dcloudio/uni-app';
 import { computed, nextTick, ref, watch } from 'vue';
 import CalendarPicker from '@/components/calendar-picker.vue';
 import CustomTabbar from '@/components/custom-tabbar.vue';
-import { monthStr } from '@/utils/fmt';
+import { monthStr, todayStr } from '@/utils/fmt';
 
 const kitchenId = ref<number | null>(getCurrentKitchenId());
 const month = ref(monthStr());
@@ -20,76 +22,27 @@ const loadFailed = ref(false);
 const calVisible = ref(false);
 const calSelected = computed(() => `${month.value}-01`);
 
-// ===== 显示货币切换（金额按汇率换算显示，数据始终以人民币分存储） =====
-type Cur = 'CNY' | 'HKD' | 'USD';
-const CUR_KEY = 'ledgerDisplayCur';
-const SYMBOL: Record<Cur, string> = { CNY: '¥', HKD: 'HK$', USD: '$' };
-const CUR_NAME: Record<Cur, string> = { CNY: '人民币', HKD: '港币', USD: '美元' };
-const displayCur = ref<Cur>((uni.getStorageSync(CUR_KEY) as Cur) || 'CNY');
-const fx = ref<{ HKD: number; USD: number }>({ HKD: 0.92, USD: 7.24 });
+// ===== v8 资产总览 / 账户 / 存款目标 =====
+const assets = ref<AssetsView>({
+  disposableFen: 0, savingFen: 0, creditDebtFen: 0, creditLimitFen: 0,
+  creditRemainFen: 0, netAssetFen: 0, budgetTotalFen: null, budgetUsedFen: null, budgetWarn: false,
+});
+const accounts = ref<AccountView[]>([]);
+const budgets = ref<BudgetView | null>(null);
+const goals = ref<SavingGoalView[]>([]);
 
-function rateOf(cur: Cur): number {
-  return cur === 'HKD' ? fx.value.HKD : cur === 'USD' ? fx.value.USD : 1;
+/** 账户 id → 名称缓存（流水行小字标签用） */
+const accountMap = computed(() => {
+  const m = new Map<number, string>();
+  accounts.value.forEach((a) => m.set(a.id, a.name));
+  return m;
+});
+function accountName(id: number | null): string {
+  return id == null ? '' : accountMap.value.get(id) || '';
 }
-/** 人民币分 → 显示货币元字符串（含符号） */
-/** 流水金额固定人民币显示（货币换算仅用于存钱罐） */
-function money(cnyFen: number): string {
-  return '¥' + (cnyFen / 100).toFixed(2);
-}
-/** 存钱余额按用户选择的货币折算显示 */
-function savingMoney(cnyFen: number): string {
-  const c = displayCur.value;
-  const val = c === 'CNY' ? cnyFen / 100 : (cnyFen / 100) / rateOf(c);
-  return SYMBOL[c] + val.toFixed(2);
-}
-function switchSavingCur() {
-  const order: Cur[] = ['CNY', 'HKD', 'USD'];
-  displayCur.value = order[(order.indexOf(displayCur.value) + 1) % order.length];
-  uni.setStorageSync(CUR_KEY, displayCur.value);
-}
-
-// ===== 存钱罐 =====
-const saving = ref<SavingSummary>({ balanceCnyFen: 0, balanceHkdFen: 0, balanceUsdFen: 0, recent: [] });
-const savingVisible = ref(false);
-const savingAmount = ref('');
-const savingKind = ref<'DEPOSIT' | 'WITHDRAW'>('DEPOSIT');
-const savingName = ref('');
-
-function savingTotalCny(): number {
-  const s = saving.value;
-  return s.balanceCnyFen + Math.round(s.balanceHkdFen * fx.value.HKD) + Math.round(s.balanceUsdFen * fx.value.USD);
-}
-const savingManageVisible = ref(false);
-
-function openSavingManage() {
-  savingManageVisible.value = true;
-}
-
-function openSaving(kind: 'DEPOSIT' | 'WITHDRAW') {
-  savingKind.value = kind;
-  savingAmount.value = '';
-  savingVisible.value = true;
-}
-function quickSave(kind: 'DEPOSIT' | 'WITHDRAW') {
-  const fen = Math.round(parseFloat(savingAmount.value) * 100);
-  if (!fen || fen <= 0 || !kitchenId.value) {
-    uni.showToast({ title: '请输入正确金额', icon: 'none' });
-    return;
-  }
-  ledgerApi
-    .savingAdd(kitchenId.value, {
-      name: kind === 'DEPOSIT' ? '存入' : '取出',
-      currency: displayCur.value,
-      amountFen: fen,
-      kind,
-    })
-    .then(() => {
-      savingAmount.value = '';
-      uni.showToast({ title: kind === 'DEPOSIT' ? '已存入' : '已取出', icon: 'none' });
-      loadSaving();
-    });
-}
-
+/** 存款目标进度：取第一个目标；无目标隐藏进度条 */
+const goalPct = computed(() => goals.value[0]?.pct ?? 0);
+const hasGoal = computed(() => goals.value.length > 0);
 
 function onCalPick(date: string | null) {
   calVisible.value = false;
@@ -100,11 +53,6 @@ function onCalPick(date: string | null) {
     load();
   }
 }
-
-const cards = computed(() => [
-  { label: '收入', value: summary.value.income, color: theme.income },
-  { label: '支出', value: summary.value.expense, color: theme.expense },
-]);
 
 const grouped = computed(() => {
   const map = new Map<string, LedgerEntryView[]>();
@@ -127,10 +75,10 @@ const pieSlices = computed(() => {
   const total = [...byCat.values()].reduce((a, b) => a + b, 0);
   const list = [...byCat.entries()]
     .sort((a, b) => b[1] - a[1])
-    .map(([name, fen], i) => ({
+    .map(([name, fenVal], i) => ({
       name,
-      fen,
-      pct: total > 0 ? (fen / total) * 100 : 0,
+      fen: fenVal,
+      pct: total > 0 ? (fenVal / total) * 100 : 0,
       color: PIE_COLORS[i % PIE_COLORS.length],
     }));
   return { total, list };
@@ -196,7 +144,7 @@ function drawTrend() {
   const h = cssH - padT - padB;
   const max = trendMax.value;
   const px = (i: number) => padL + (w * i) / (pts.length - 1);
-  const py = (fen: number) => padT + h - (h * fen) / max;
+  const py = (fenVal: number) => padT + h - (h * fenVal) / max;
   const xy = pts.map((p, i) => ({ x: px(i), y: py(p.fen) }));
 
   // 网格基线
@@ -288,19 +236,26 @@ function nextMonth() {
   load();
 }
 
+/** 每次进入/切月并行拉：汇总 + 流水 + 资产 + 账户 + 预算 + 存款目标 */
 async function load() {
   if (!kitchenId.value) return;
   loading.value = true;
   try {
-    const [s, list] = await Promise.all([
+    const [s, list, a, acc, b, g] = await Promise.all([
       ledgerApi.summary(kitchenId.value, month.value),
       ledgerApi.list(kitchenId.value, month.value),
+      ledgerApi.assets(kitchenId.value).catch(() => null),
+      ledgerApi.accounts(kitchenId.value).catch(() => null),
+      ledgerApi.budgets(kitchenId.value, month.value).catch(() => null),
+      ledgerApi.savingGoals(kitchenId.value).catch(() => null),
     ]);
     summary.value = s;
     entries.value = list;
+    if (a) assets.value = a;
+    if (acc) accounts.value = acc;
+    budgets.value = b;
+    if (g) goals.value = g;
     loadFailed.value = false;
-    ledgerApi.fx(kitchenId.value).then((f) => (fx.value = f)).catch(() => {});
-    loadSaving();
   } catch {
     // 网络失败且无缓存：清空并给出可见的失败态，
     // 避免"月份文字变了但数据还是上个月的"这种看似切换失灵的误导
@@ -312,17 +267,81 @@ async function load() {
   }
 }
 
-function loadSaving() {
-  if (!kitchenId.value) return;
-  ledgerApi.savingsSummary(kitchenId.value).then((s) => (saving.value = s)).catch(() => {});
-}
-
 function goAdd() {
   uni.navigateTo({ url: `/pages/ledger/add?month=${month.value}` });
 }
 
 function goCategories() {
   uni.navigateTo({ url: '/pages/ledger/categories' });
+}
+
+function goAccounts() {
+  uni.navigateTo({ url: '/pages/ledger/accounts' });
+}
+
+function goBudgets() {
+  uni.navigateTo({ url: '/pages/ledger/budgets' });
+}
+
+function goRecurring() {
+  uni.navigateTo({ url: '/pages/ledger/recurring' });
+}
+
+function goGoals() {
+  uni.navigateTo({ url: '/pages/ledger/goals' });
+}
+
+/** 旧存钱罐入口兼容：改跳存款目标页 */
+function openSavingManage() {
+  goGoals();
+}
+
+/** 快捷存钱：第一个可支配账户 → 第一个存款账户（走 TRANSFER 转账双行） */
+function saveMoney() {
+  if (!kitchenId.value) return;
+  const from = accounts.value.find((a) => a.type === 'DISPOSABLE');
+  const to = accounts.value.find((a) => a.type === 'SAVING');
+  if (!from || !to) {
+    uni.showToast({ title: '请先在账户管理建立可支配与存款账户', icon: 'none' });
+    return;
+  }
+  uni.showModal({
+    title: '存钱',
+    editable: true,
+    placeholderText: '存入金额(元)',
+    success: (res) => {
+      if (!res.confirm) return;
+      const amountFen = Math.round(parseFloat((res.content || '').trim()) * 100);
+      if (!amountFen || amountFen <= 0) {
+        uni.showToast({ title: '请输入正确金额', icon: 'none' });
+        return;
+      }
+      ledgerApi
+        .transfer(kitchenId.value!, {
+          fromAccountId: from.id,
+          toAccountId: to.id,
+          amountFen,
+          date: todayStr(),
+          remark: '存钱',
+        })
+        .then(() => {
+          uni.showToast({ title: '已存入存款账户', icon: 'none' });
+          load();
+        });
+    },
+  });
+}
+
+/** ⋯ 更多：导出PDF / 分类管理 / 存款目标 */
+function goMore() {
+  uni.showActionSheet({
+    itemList: ['导出PDF', '分类管理', '存款目标'],
+    success: (res) => {
+      if (res.tapIndex === 0) exportPdf();
+      else if (res.tapIndex === 1) goCategories();
+      else if (res.tapIndex === 2) goGoals();
+    },
+  });
 }
 
 /** Blob → base64 dataURL（给原生桥保存用） */
@@ -389,10 +408,31 @@ function exportPdf() {
   // #endif
 }
 
+/** 流水金额固定人民币显示（外币入账时已折算成人民币分存储） */
+function money(cnyFen: number): string {
+  return '¥' + (cnyFen / 100).toFixed(2);
+}
+
 function typeLabel(e: LedgerEntryView) {
+  if (e.type === 'TRANSFER') return `↔ ${e.category || '转账'}`;
   if (e.type === 'EXPENSE') return e.category || '支出';
   if (e.type === 'REFUND') return '退款冲销';
   return e.category || '收入';
+}
+
+/** 流水图标底色：收入/退款 暖、支出 绿、转账 中性 */
+function iconClass(e: LedgerEntryView) {
+  return e.type === 'TRANSFER' ? 'transfer' : e.type.toLowerCase();
+}
+
+/** 金额颜色：支出绿、收入橙、转账中性（不带 +/−） */
+function amountClass(e: LedgerEntryView) {
+  return e.type === 'EXPENSE' ? 'out' : e.type === 'TRANSFER' ? 'mid' : 'in';
+}
+
+/** 外币原币种符号（折算明细展示用） */
+function curSymbol(cur: string): string {
+  return cur === 'HKD' ? 'HK$' : '$';
 }
 
 // ----- 分费用展开：点带分项的流水展开/收起明细 -----
@@ -470,6 +510,10 @@ function onEntryTap(e: LedgerEntryView) {
 }
 
 function editEntry(e: LedgerEntryView) {
+  if (e.type === 'TRANSFER') {
+    uni.showToast({ title: '转账记录不支持编辑', icon: 'none' });
+    return;
+  }
   openedId.value = null;
   uni.navigateTo({ url: `/pages/ledger/add?id=${e.id}` });
 }
@@ -488,7 +532,7 @@ function previewEntryImage(e: LedgerEntryView) {
 function delEntry(e: LedgerEntryView) {
   uni.showModal({
     title: '删除流水',
-    content: '确定删除这条手动流水？',
+    content: e.type === 'TRANSFER' ? '转账双行将同时删除，确定？' : '确定删除这条手动流水？',
     confirmColor: '#E05B4E',
     success: (res) => {
       if (!res.confirm) return;
@@ -508,26 +552,53 @@ function delEntry(e: LedgerEntryView) {
       <text class="arrow" hover-class="press-dim" @tap="nextMonth">›</text>
     </view>
 
-    <!-- 汇总卡：收入 / 支出 / 存钱罐（人民币；存钱罐按所选货币折算，点击进管理弹窗） -->
-    <view class="cards">
-      <view v-for="c in cards" :key="c.label" class="card summary">
-        <text class="s-label">{{ c.label }}</text>
-        <text class="s-value" :style="{ color: c.color }">{{ money(c.value) }}</text>
+    <!-- v8 资产双卡：左钱右卡，点击进账户管理 -->
+    <view class="assets-row">
+      <view class="card asset money" hover-class="press-dim" @tap="goAccounts">
+        <view class="a-title-row">
+          <text class="a-name">💰 资产</text>
+          <text class="a-big">¥{{ fen(assets.disposableFen + assets.savingFen) }}</text>
+        </view>
+        <view class="a-sub"><text>可支配</text><text>¥{{ fen(assets.disposableFen) }}</text></view>
+        <view class="a-sub"><text>存款</text><text>¥{{ fen(assets.savingFen) }}</text></view>
+        <template v-if="hasGoal">
+          <view class="goal-bar"><view class="goal-fill" :style="{ width: goalPct + '%' }" /></view>
+          <text class="goal-tip">存款目标 {{ goalPct }}%</text>
+        </template>
       </view>
-      <view class="card summary save-summary" hover-class="press-bg" @tap="openSavingManage">
-        <text class="s-label">存钱罐<text class="save-manage">管理 ›</text></text>
-        <text class="s-value save-value">{{ savingMoney(savingTotalCny()) }}</text>
+      <view class="card asset credit" hover-class="press-dim" @tap="goAccounts">
+        <view class="a-title-row">
+          <text class="a-name">💳 信用卡</text>
+          <text class="a-big neg">-¥{{ fen(assets.creditDebtFen) }}</text>
+        </view>
+        <view class="a-sub"><text>总额度</text><text>¥{{ fen(assets.creditLimitFen) }}</text></view>
+        <view class="a-sub"><text>剩余</text><text>¥{{ fen(assets.creditRemainFen) }}</text></view>
       </view>
     </view>
 
-    <!-- 操作行 -->
-    <view class="card actions">
-      <text class="act add" hover-class="press-dim" @tap="goAdd">＋ 记一笔</text>
-      <text class="act toggle" hover-class="press-dim" @tap="showStats = !showStats">
-        {{ showStats ? '收起总统计' : '总统计' }}
-      </text>
-      <text class="act cats" hover-class="press-dim" @tap="goCategories">分类管理</text>
-      <text class="act export" hover-class="press-dim" @tap="exportPdf">导出PDF</text>
+    <!-- 月度三数单行：结余 / 收入 / 支出 -->
+    <view class="cards">
+      <view class="card summary">
+        <text class="s-label">结余</text>
+        <text class="s-value" :style="{ color: theme.title }">¥{{ fen(summary.balance) }}</text>
+      </view>
+      <view class="card summary">
+        <text class="s-label">收入</text>
+        <text class="s-value" :style="{ color: theme.income }">¥{{ fen(summary.income) }}</text>
+      </view>
+      <view class="card summary">
+        <text class="s-label">支出</text>
+        <text class="s-value" :style="{ color: theme.expense }">¥{{ fen(summary.expense) }}</text>
+      </view>
+    </view>
+
+    <!-- 操作行五项等分 -->
+    <view class="card acts">
+      <text class="act primary" hover-class="press-dim" @tap="goAdd">＋记一笔</text>
+      <text class="act" hover-class="press-dim" @tap="goBudgets">📊预算{{ assets.budgetWarn ? '⚠️' : '' }}</text>
+      <text class="act" hover-class="press-dim" @tap="goRecurring">🔁周期</text>
+      <text class="act" hover-class="press-dim" @tap="saveMoney">🐖存钱</text>
+      <text class="act" hover-class="press-dim" @tap="goMore">⋯</text>
     </view>
 
     <!-- 总统计 -->
@@ -565,7 +636,7 @@ function delEntry(e: LedgerEntryView) {
       <text class="day-head">{{ Number(date.slice(5, 7)) }}月{{ Number(date.slice(8, 10)) }}日</text>
       <view v-for="e in list" :key="e.id" class="swipe-cell">
         <view class="swipe-actions">
-          <text class="swipe-btn edit" hover-class="press-dim" @tap.stop="editEntry(e)">修改</text>
+          <text v-if="e.type !== 'TRANSFER'" class="swipe-btn edit" hover-class="press-dim" @tap.stop="editEntry(e)">修改</text>
           <text class="swipe-btn del" hover-class="press-dim" @tap.stop="delEntrySwipe(e)">删除</text>
         </view>
         <view
@@ -578,12 +649,13 @@ function delEntry(e: LedgerEntryView) {
           @tap="onEntryTap(e)"
         >
           <view class="entry-row">
-            <view class="entry-icon" :class="e.type.toLowerCase()">
-              <text>{{ e.type === 'EXPENSE' ? '支' : e.type === 'REFUND' ? '退' : '收' }}</text>
+            <view class="entry-icon" :class="iconClass(e)">
+              <text>{{ e.type === 'EXPENSE' ? '支' : e.type === 'REFUND' ? '退' : e.type === 'TRANSFER' ? '⇄' : '收' }}</text>
             </view>
             <view class="entry-info">
               <text class="entry-title">
                 {{ typeLabel(e) }}
+                <text v-if="accountName(e.accountId)" class="acct-tag">{{ accountName(e.accountId) }}</text>
                 <text v-if="e.paymentMethod" class="pm-tag">{{ e.paymentMethod }}</text>
                 <text v-if="e.currency && e.currency !== 'CNY'" class="cur-tag">{{ e.currency }}</text>
                 <text v-if="hasSubItems(e)" class="sub-tag">分{{ e.subItems!.length }}项</text>
@@ -591,8 +663,8 @@ function delEntry(e: LedgerEntryView) {
               <text v-if="e.remark" class="entry-remark">{{ e.remark }}</text>
             </view>
             <view class="entry-right">
-              <text class="entry-amount" :class="e.type === 'EXPENSE' ? 'out' : 'in'">
-                {{ e.type === 'EXPENSE' ? '−' : '+' }}{{ money(e.amountFen) }}
+              <text class="entry-amount" :class="amountClass(e)">
+                {{ e.type === 'EXPENSE' ? '−' : e.type === 'TRANSFER' ? '' : '+' }}{{ money(e.amountFen) }}
               </text>
               <text v-if="hasSubItems(e) || e.imageUrl" class="expand-arrow" :class="{ open: expanded[e.id] }">▸</text>
             </view>
@@ -601,7 +673,7 @@ function delEntry(e: LedgerEntryView) {
           <view v-if="expanded[e.id]" class="entry-subs">
             <view v-if="e.currency !== 'CNY' && e.origAmountFen" class="entry-sub">
               <text class="entry-sub-name">原币种金额</text>
-              <text class="entry-sub-amount">{{ SYMBOL[e.currency as 'CNY'|'HKD'|'USD'] }}{{ (e.origAmountFen / 100).toFixed(2) }}</text>
+              <text class="entry-sub-amount">{{ curSymbol(e.currency) }}{{ (e.origAmountFen / 100).toFixed(2) }}</text>
             </view>
             <view v-for="(s, si) in (e.subItems || [])" :key="si" class="entry-sub">
               <text class="entry-sub-name">{{ s.name }}</text>
@@ -624,48 +696,13 @@ function delEntry(e: LedgerEntryView) {
       <text class="empty-tip">{{ month }} 还没有收支记录</text>
     </view>
 
-    <!-- 存钱管理弹窗：显示货币切换 + 存入/取出 + 最近记录 -->
-    <view v-if="savingManageVisible" class="save-mask" @tap="savingManageVisible = false">
-      <view class="save-panel" @tap.stop>
-        <view class="head">
-          <text class="title">存钱罐</text>
-          <text class="close" hover-class="press-dim" @tap="savingManageVisible = false">✕</text>
-        </view>
-        <view class="save-total-row">
-          <text class="save-total">{{ savingMoney(savingTotalCny()) }}</text>
-          <text class="cur-switch" hover-class="press-dim" @tap="switchSavingCur">
-            {{ CUR_NAME[displayCur] }} ⇄
-          </text>
-        </view>
-        <view class="save-balances-row">
-          <text v-if="saving.balanceCnyFen" class="save-b">¥{{ (saving.balanceCnyFen / 100).toFixed(2) }}</text>
-          <text v-if="saving.balanceHkdFen" class="save-b">HK${{ (saving.balanceHkdFen / 100).toFixed(2) }}</text>
-          <text v-if="saving.balanceUsdFen" class="save-b">${{ (saving.balanceUsdFen / 100).toFixed(2) }}</text>
-        </view>
-        <view class="save-actions-row">
-          <input v-model="savingAmount" class="save-input" type="digit" placeholder="金额" placeholder-class="ph" />
-          <text class="save-btn dep" hover-class="press-dim" @tap="quickSave('DEPOSIT')">存入</text>
-          <text class="save-btn wd" hover-class="press-dim" @tap="quickSave('WITHDRAW')">取出</text>
-        </view>
-        <text class="save-tip">按当前显示货币（{{ CUR_NAME[displayCur] }}）计入</text>
-        <scroll-view v-if="saving.recent.length" scroll-y class="save-list">
-          <view v-for="r in saving.recent" :key="r.id" class="save-item">
-            <text class="save-item-name">{{ r.kind === 'DEPOSIT' ? '存入' : '取出' }} {{ r.name }}</text>
-            <text class="save-item-amt" :class="{ wd: r.kind === 'WITHDRAW' }">
-              {{ r.kind === 'DEPOSIT' ? '+' : '-' }}{{ SYMBOL[r.currency] }}{{ (r.amountFen / 100).toFixed(2) }}
-            </text>
-          </view>
-        </scroll-view>
-      </view>
-    </view>
-
     <CalendarPicker
       :visible="calVisible"
       :selected="calSelected"
       @select="onCalPick"
       @close="calVisible = false"
     />
-  
+
         </view>
     <CustomTabbar current="ledger" />
   </view>
@@ -704,58 +741,35 @@ function delEntry(e: LedgerEntryView) {
 .swipe-btn.del { background: v-bind('theme.danger'); }
 .swipe-content { position: relative; z-index: 2; will-change: transform; }
 
-/* 存钱罐并入汇总行第三卡：与收入/支出同规格，金额按所选货币折算 */
-.save-summary { cursor: pointer; }
-.save-manage { font-size: 20rpx; font-weight: 400; color: v-bind('theme.sub'); margin-left: 6rpx; }
-.save-value { color: v-bind('theme.primaryBtn'); font-size: 28rpx; }
-.save-mask {
-  position: fixed; left: 0; right: 0; top: 0; bottom: 0;
-  background: rgba(40, 32, 16, 0.5); z-index: 1400;
-  display: flex; flex-direction: column; justify-content: flex-end;
+/* v8 资产双卡：各约屏宽 46% 居中；标题与大金额同行；分项行距 1.45 */
+.assets-row {
+  display: flex; justify-content: center;
+  gap: 2.6%; margin-bottom: 16rpx;
 }
-.save-panel {
-  background: v-bind('theme.card'); border-radius: 32rpx 32rpx 0 0;
-  padding: 30rpx 30rpx calc(30rpx + env(safe-area-inset-bottom));
-  max-height: 70vh; display: flex; flex-direction: column;
+.asset {
+  width: 46%; padding: 24rpx 26rpx 20rpx;
+  box-sizing: border-box; cursor: pointer;
 }
-.save-total-row { display: flex; align-items: baseline; justify-content: space-between; margin: 10rpx 0 4rpx; }
-.save-total { font-size: 52rpx; font-weight: 700; color: v-bind('theme.title'); }
-.cur-switch { font-size: 26rpx; color: v-bind('theme.primaryBtn'); font-weight: 600; }
-.save-balances-row { display: flex; gap: 18rpx; margin: 6rpx 0 16rpx; flex-wrap: wrap; }
-.save-actions-row { display: flex; gap: 14rpx; align-items: center; }
-.save-input { flex: 1; background: v-bind('theme.primaryLight'); border-radius: 14rpx; padding: 18rpx 22rpx; font-size: 30rpx; }
-.save-btn { padding: 18rpx 34rpx; border-radius: 40rpx; font-size: 28rpx; font-weight: 600; }
-.save-tip { font-size: 22rpx; color: v-bind('theme.sub'); margin: 12rpx 2rpx 4rpx; }
-.save-list { max-height: 30vh; margin-top: 8rpx; }
-.save-item { display: flex; justify-content: space-between; padding: 14rpx 2rpx; border-bottom: 2rpx solid v-bind('theme.divider'); }
-.save-item-name { font-size: 26rpx; color: v-bind('theme.title'); }
-.save-item-amt { font-size: 26rpx; color: v-bind('theme.success'); font-weight: 600; }
-.save-item-amt.wd { color: v-bind('theme.danger'); }
-
-.save-balances { display: flex; gap: 18rpx; margin-top: 6rpx; flex-wrap: wrap; }
-.save-b { font-size: 28rpx; font-weight: 700; color: v-bind('theme.title'); }
-.save-b.muted { color: v-bind('theme.sub'); font-weight: 400; }
-.save-ops { display: flex; gap: 14rpx; }
-.save-op {
-  padding: 12rpx 28rpx; border-radius: 40rpx; font-size: 26rpx; font-weight: 600;
+.a-title-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8rpx; }
+.a-name { font-size: 24rpx; font-weight: 600; color: v-bind('theme.sub'); flex-shrink: 0; }
+.a-big { font-size: 34rpx; font-weight: 700; color: v-bind('theme.title'); }
+.a-big.neg { color: v-bind('theme.danger'); }
+.a-sub {
+  display: flex; justify-content: space-between;
+  line-height: 1.45; font-size: 22rpx; color: v-bind('theme.sub');
+  margin-top: 4rpx;
 }
-.save-op.dep { background: v-bind('theme.primaryBtn'); color: #fff; }
-.save-op.wd { color: v-bind('theme.primaryBtn'); border: 2rpx solid v-bind('theme.primaryBtn'); }
-.cur-pick { color: v-bind('theme.primaryBtn'); font-weight: 600; }
-.cur-hint { background: v-bind('theme.primaryLight'); }
-.pm-tag {
-  font-size: 20rpx; color: v-bind('theme.sub');
-  border: 2rpx solid v-bind('theme.divider'); border-radius: 8rpx;
-  padding: 2rpx 10rpx; margin-left: 8rpx;
+.goal-bar {
+  height: 3px; border-radius: 3rpx;
+  background: v-bind('theme.chipBg'); overflow: hidden;
+  margin-top: 16rpx;
 }
-.cur-tag {
-  font-size: 20rpx; color: #B8860B;
-  border: 2rpx solid #D4AF37; border-radius: 8rpx;
-  padding: 2rpx 10rpx; margin-left: 8rpx;
+.goal-fill {
+  height: 100%; border-radius: 3rpx;
+  background: v-bind('theme.primaryBtn');
+  transition: width 0.3s;
 }
-.entry-photo-row { display: flex; align-items: center; gap: 16rpx; padding-top: 14rpx; }
-.entry-photo { width: 160rpx; height: 160rpx; border-radius: 14rpx; background: v-bind('theme.primaryLight'); }
-.entry-photo-tip { font-size: 22rpx; color: v-bind('theme.sub'); }
+.goal-tip { display: block; font-size: 20rpx; color: v-bind('theme.sub'); margin-top: 8rpx; }
 
 .month-row {
   display: flex; align-items: center; justify-content: center; gap: 64rpx;
@@ -767,12 +781,11 @@ function delEntry(e: LedgerEntryView) {
 .summary { flex: 1; padding: 24rpx 0; display: flex; flex-direction: column; align-items: center; }
 .s-label { font-size: 22rpx; color: v-bind('theme.sub'); }
 .s-value { font-size: 30rpx; font-weight: 700; margin-top: 8rpx; }
-.actions { display: flex; padding: 20rpx 24rpx; margin-bottom: 16rpx; }
-.act { font-size: 27rpx; flex: 1; text-align: center; }
-.act.add { color: v-bind('theme.primaryBtn'); font-weight: 700; }
-.act.toggle { color: v-bind('theme.title'); }
-.act.cats { color: v-bind('theme.title'); }
-.act.export { color: v-bind('theme.title'); }
+
+/* v8 操作行：五项等分 */
+.acts { display: flex; align-items: center; padding: 22rpx 8rpx; margin-bottom: 16rpx; }
+.act { flex: 1; text-align: center; font-size: 25rpx; color: v-bind('theme.title'); }
+.act.primary { color: v-bind('theme.primaryBtn'); font-weight: 700; }
 
 .chart { padding: 28rpx 32rpx; margin-bottom: 16rpx; }
 .sec-title { font-size: 28rpx; font-weight: 600; color: v-bind('theme.title'); }
@@ -803,16 +816,6 @@ function delEntry(e: LedgerEntryView) {
 .trend-canvas { width: 100%; height: 360rpx; }
 
 .chart-empty { padding: 20rpx 0; text-align: center; font-size: 24rpx; color: v-bind('theme.sub'); }
-.stat-row { display: flex; align-items: center; gap: 16rpx; margin-top: 18rpx; }
-.stat-rank {
-  width: 36rpx; height: 36rpx; border-radius: 10rpx;
-  background: v-bind('theme.chipBg'); color: v-bind('theme.sub');
-  font-size: 22rpx; text-align: center; line-height: 36rpx;
-}
-.stat-rank.top { background: v-bind('theme.primaryLight'); color: v-bind('theme.primaryBtn'); font-weight: 700; }
-.stat-name { flex: 1; font-size: 26rpx; color: v-bind('theme.title'); }
-.stat-qty { font-size: 24rpx; color: v-bind('theme.sub'); }
-.stat-sales { font-size: 26rpx; font-weight: 600; color: v-bind('theme.income'); }
 
 .loading-tip { padding: 40rpx 0; text-align: center; font-size: 24rpx; color: v-bind('theme.sub'); }
 .day-head { display: block; font-size: 24rpx; color: v-bind('theme.sub'); margin: 20rpx 0 12rpx; }
@@ -833,6 +836,7 @@ function delEntry(e: LedgerEntryView) {
 }
 .entry-icon.income, .entry-icon.refund { background: v-bind('theme.primaryLight'); color: v-bind('theme.income'); }
 .entry-icon.expense { background: v-bind('theme.successLight'); color: v-bind('theme.expense'); }
+.entry-icon.transfer { background: v-bind('theme.chipBg'); color: v-bind('theme.sub'); }
 .entry-info { flex: 1; min-width: 0; }
 .entry-title { font-size: 28rpx; font-weight: 500; color: v-bind('theme.title'); }
 .order-tag {
@@ -841,17 +845,30 @@ function delEntry(e: LedgerEntryView) {
   border: 2rpx solid v-bind('theme.primaryBtn'); border-radius: 6rpx;
   padding: 0 8rpx;
 }
-.sub-tag {
-  display: inline-block; margin-left: 10rpx;
-  font-size: 18rpx; color: v-bind('theme.expense');
-  border: 2rpx solid v-bind('theme.expense'); border-radius: 6rpx;
-  padding: 0 8rpx;
+.acct-tag {
+  font-size: 20rpx; color: v-bind('theme.sub');
+  background: v-bind('theme.chipBg'); border-radius: 8rpx;
+  padding: 2rpx 10rpx; margin-left: 8rpx;
 }
+.pm-tag {
+  font-size: 20rpx; color: v-bind('theme.sub');
+  border: 2rpx solid v-bind('theme.divider'); border-radius: 8rpx;
+  padding: 2rpx 10rpx; margin-left: 8rpx;
+}
+.cur-tag {
+  font-size: 20rpx; color: #B8860B;
+  border: 2rpx solid #D4AF37; border-radius: 8rpx;
+  padding: 2rpx 10rpx; margin-left: 8rpx;
+}
+.entry-photo-row { display: flex; align-items: center; gap: 16rpx; padding-top: 14rpx; }
+.entry-photo { width: 160rpx; height: 160rpx; border-radius: 14rpx; background: v-bind('theme.primaryLight'); }
+.entry-photo-tip { font-size: 22rpx; color: v-bind('theme.sub'); }
 .entry-remark { display: block; font-size: 22rpx; color: v-bind('theme.sub'); margin-top: 4rpx; }
 .entry-right { display: flex; flex-direction: column; align-items: flex-end; }
 .entry-amount { font-size: 30rpx; font-weight: 700; }
 .entry-amount.in { color: v-bind('theme.income'); }
 .entry-amount.out { color: v-bind('theme.expense'); }
+.entry-amount.mid { color: v-bind('theme.sub'); }
 .expand-arrow {
   font-size: 20rpx; color: v-bind('theme.sub'); margin-top: 2rpx;
   transition: transform 0.2s; transform: rotate(90deg);
