@@ -98,6 +98,11 @@ check "账户列表含默认现金" "$R" '"name":"现金"'
 check "账户余额=期初" "$R" '"balanceFen":50000'
 R=$(curl -s $BASE/api/kitchens/$KID/ledger/assets -H "$HA")
 check "资产总览含净资产" "$R" '"netAssetFen"'
+# 记一笔挂账户 → PUT accountId=0 解绑 → GET 回 null（0=清空、缺失=保留）
+EID=$(curl -s -X POST $BASE/api/kitchens/$KID/ledger/entries -H "$J" -H "$HA" -d '{"type":"EXPENSE","category":"食材采购","amountFen":660,"remark":"解绑冒烟","accountId":'"$AID"'}' | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['id'])")
+curl -s -X PUT $BASE/api/kitchens/$KID/ledger/entries/$EID -H "$J" -H "$HA" -d '{"type":"EXPENSE","category":"食材采购","amountFen":660,"accountId":0}' > /dev/null
+R=$(curl -s "$BASE/api/kitchens/$KID/ledger/entries?month=$(date +%Y-%m)" -H "$HA" | python3 -c "import sys,json;d=json.load(sys.stdin)['data'];e=[x for x in d if x['id']==$EID][0];print('accountId=%s' % ('null' if e['accountId'] is None else e['accountId']))" 2>&1)
+check "编辑解绑账户(PUT 0→GET null)" "$R" 'accountId=null'
 
 # 4.7 TRANSFER(P2)
 SAV=$(curl -s $BASE/api/kitchens/$KID/ledger/accounts -H "$HA" | python3 -c "import sys,json;d=json.load(sys.stdin)['data'];print([a['id'] for a in d if a['type']=='SAVING'][0])")

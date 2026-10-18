@@ -219,7 +219,11 @@ public class LedgerService {
         }
         e.setRemark(req.remark() == null ? "" : req.remark().trim());
         applyCurrencyAndExtras(e, req);
-        if (req.accountId() != null) { // 未传则保留原账户
+        if (req.accountId() == null) { // 字段缺失/null：保留原账户
+            // 保留
+        } else if (req.accountId() == 0L) { // 显式 0：解绑账户（前端「未指定」）
+            e.setAccountId(null);
+        } else {
             e.setAccountId(validAccount(e.getKitchenId(), req.accountId()));
         }
         ledgerRepository.save(e);

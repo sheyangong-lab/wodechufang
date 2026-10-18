@@ -448,7 +448,8 @@ function submit() {
     currency: currency.value,
     paymentMethod: payMethod.value || undefined,
     imageUrl: imageUrl.value || undefined,
-    accountId: accountId.value ?? undefined,
+    // 编辑模式「未指定」显式传 0 = 解绑账户（后端：0 清空、缺失保留）；新建未指定不传
+    accountId: editId.value ? accountId.value ?? 0 : accountId.value ?? undefined,
   };
   const req = editId.value
     ? ledgerApi.update(kitchenId.value, editId.value, payload)
