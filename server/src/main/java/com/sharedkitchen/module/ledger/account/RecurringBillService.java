@@ -74,17 +74,21 @@ public class RecurringBillService {
         return toView(billRepository.findById(b.getId()).orElse(b));
     }
 
-    /** 仅更新传入（非 null）字段；更新落库后 nextDate 已到且启用中则锁内立即补账。 */
+    /** 仅更新传入（非 null）字段。owned→save 及补账整段持 SCAN_LOCK（与 scanOnce 持锁补账互斥）：
+     *  锁内读账单拿最新 next_date 再落库，杜绝编辑用陈旧 next_date 覆盖扫描已提交的推进（重复入账）。 */
     public BillView update(Long userId, Long kitchenId, Long billId, BillReq req) {
         requireMember(kitchenId, userId);
-        RecurringBill b = owned(kitchenId, billId);
-        applyReq(b, kitchenId, userId, req);
-        if (req.enabled() != null) {
-            b.setEnabled(req.enabled() == 0 ? 0 : 1);
-        }
-        billRepository.save(b);
-        if (b.getEnabled() == 1 && b.getNextDate().compareTo(today()) <= 0) {
-            catchUpNow(b.getId());
+        RecurringBill b;
+        synchronized (SCAN_LOCK) {
+            b = owned(kitchenId, billId);
+            applyReq(b, kitchenId, userId, req);
+            if (req.enabled() != null) {
+                b.setEnabled(req.enabled() == 0 ? 0 : 1);
+            }
+            billRepository.save(b);
+            if (b.getEnabled() == 1 && b.getNextDate().compareTo(today()) <= 0) {
+                catchUpNow(b.getId()); // synchronized 可重入，锁内再持无碍
+            }
         }
         return toView(billRepository.findById(b.getId()).orElse(b));
     }

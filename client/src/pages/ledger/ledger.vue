@@ -43,6 +43,13 @@ function accountName(id: number | null): string {
 /** 存款目标进度：取第一个目标；无目标隐藏进度条 */
 const goalPct = computed(() => goals.value[0]?.pct ?? 0);
 const hasGoal = computed(() => goals.value.length > 0);
+/** 信用卡卡金额：欠款为负号红字，溢余（超额还款/预存，creditDebtFen<0）为正号绿字，0 即 ¥0.00 */
+const creditDebtText = computed(() => {
+  const d = assets.value.creditDebtFen;
+  if (d > 0) return `-¥${fen(d)}`;
+  if (d < 0) return `+¥${fen(-d)}`;
+  return `¥${fen(0)}`;
+});
 
 function onCalPick(date: string | null) {
   calVisible.value = false;
@@ -569,7 +576,8 @@ function delEntry(e: LedgerEntryView) {
       <view class="card asset credit" hover-class="press-dim" @tap="goAccounts">
         <view class="a-title-row">
           <text class="a-name">💳 信用卡</text>
-          <text class="a-big neg">-¥{{ fen(assets.creditDebtFen) }}</text>
+          <text class="a-big" :class="{ neg: assets.creditDebtFen > 0 }"
+                :style="assets.creditDebtFen < 0 ? { color: theme.success } : undefined">{{ creditDebtText }}</text>
         </view>
         <view class="a-sub"><text>总额度</text><text>¥{{ fen(assets.creditLimitFen) }}</text></view>
         <view class="a-sub"><text>剩余</text><text>¥{{ fen(assets.creditRemainFen) }}</text></view>
