@@ -185,6 +185,7 @@ export const ledgerApi = {
       imageUrl?: string;
       paymentMethod?: string;
       currency?: 'CNY' | 'HKD' | 'USD';
+      accountId?: number | null;
     }
   ) =>
     request<LedgerEntryView>({
@@ -205,6 +206,7 @@ export const ledgerApi = {
       imageUrl?: string;
       paymentMethod?: string;
       currency?: 'CNY' | 'HKD' | 'USD';
+      accountId?: number | null;
     }
   ) =>
     request<LedgerEntryView>({

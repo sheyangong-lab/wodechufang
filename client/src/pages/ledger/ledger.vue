@@ -860,6 +860,12 @@ function delEntry(e: LedgerEntryView) {
   border: 2rpx solid #D4AF37; border-radius: 8rpx;
   padding: 2rpx 10rpx; margin-left: 8rpx;
 }
+.sub-tag {
+  display: inline-block; margin-left: 10rpx;
+  font-size: 18rpx; color: v-bind('theme.expense');
+  border: 2rpx solid v-bind('theme.expense'); border-radius: 6rpx;
+  padding: 0 8rpx;
+}
 .entry-photo-row { display: flex; align-items: center; gap: 16rpx; padding-top: 14rpx; }
 .entry-photo { width: 160rpx; height: 160rpx; border-radius: 14rpx; background: v-bind('theme.primaryLight'); }
 .entry-photo-tip { font-size: 22rpx; color: v-bind('theme.sub'); }

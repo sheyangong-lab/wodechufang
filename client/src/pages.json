@@ -89,6 +89,22 @@
       "style": { "navigationBarTitleText": "账本分类管理", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
     },
     {
+      "path": "pages/ledger/accounts",
+      "style": { "navigationBarTitleText": "账户管理", "navigationBarBackgroundColor": "#FFF8F2", "navigationBarTextStyle": "black" }
+    },
+    {
+      "path": "pages/ledger/budgets",
+      "style": { "navigationBarTitleText": "预算管理", "navigationBarBackgroundColor": "#FFF8F2", "navigationBarTextStyle": "black" }
+    },
+    {
+      "path": "pages/ledger/recurring",
+      "style": { "navigationBarTitleText": "周期账单", "navigationBarBackgroundColor": "#FFF8F2", "navigationBarTextStyle": "black" }
+    },
+    {
+      "path": "pages/ledger/goals",
+      "style": { "navigationBarTitleText": "存款目标", "navigationBarBackgroundColor": "#FFF8F2", "navigationBarTextStyle": "black" }
+    },
+    {
       "path": "pages/order/order",
       "style": { "navigationBarTitleText": "订单", "navigationBarBackgroundColor": "#FFFBF2", "navigationBarTextStyle": "black" }
     },

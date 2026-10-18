@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { theme } from '@/styles/theme';
 import { ledgerApi, groupCategories } from '@/api/ledger';
-import type { LedgerCategoryView, LedgerEntryView } from '@/api/ledger';
+import type { LedgerCategoryView, LedgerEntryView, AccountView } from '@/api/ledger';
 import { yuanToFen } from '@/api/dish';
 import { getApiBase } from '@/api/config';
 import { ensureKitchenId, getCurrentKitchenId } from '@/api/kitchen';
@@ -39,6 +39,36 @@ const paySheetItems = computed(() => [
   { key: '__add', title: '＋ 自定义支付方式', desc: '输入名称添加' },
   ...payMethods.value.map((m) => ({ key: m.name, title: m.name })),
 ]);
+// ===== 记账账户（可支配/存款/信用卡；未指定=不关联） =====
+const accounts = ref<AccountView[]>([]);
+const accountId = ref<number | null>(null);
+const acctSheetVisible = ref(false);
+const ACCT_TYPE_LABEL: Record<string, string> = { DISPOSABLE: '可支配', SAVING: '存款', CREDIT: '信用卡' };
+
+const acctSheetItems = computed(() => {
+  const items: { key: string; title: string; desc?: string }[] = [
+    { key: '', title: '未指定', desc: '不关联账户' },
+  ];
+  (['DISPOSABLE', 'SAVING', 'CREDIT'] as const).forEach((t) => {
+    accounts.value
+      .filter((a) => a.type === t)
+      .forEach((a) => items.push({ key: String(a.id), title: a.name, desc: ACCT_TYPE_LABEL[t] }));
+  });
+  return items;
+});
+
+const accountLabel = computed(() =>
+  accountId.value != null ? accounts.value.find((a) => a.id === accountId.value)?.name || '' : ''
+);
+
+function pickAccount() {
+  acctSheetVisible.value = true;
+}
+
+function onAccountPick(key: string) {
+  acctSheetVisible.value = false;
+  accountId.value = key === '' ? null : Number(key);
+}
 // ===== 账单图片 =====
 const imageUrl = ref('');
 // ===== 币种选择弹层 =====
@@ -99,6 +129,11 @@ function loadPayMethods() {
   if (!kitchenId.value) return Promise.resolve();
   return ledgerApi.paymentMethods(kitchenId.value).then((m) => (payMethods.value = m));
 }
+
+function loadAccounts() {
+  if (!kitchenId.value) return Promise.resolve();
+  return ledgerApi.accounts(kitchenId.value).then((a) => (accounts.value = a)).catch(() => {});
+}
 /** 编辑模式：URL 带 id 时为修改既有流水（否则新增） */
 const editId = ref<number | null>(null);
 
@@ -114,6 +149,7 @@ onLoad(async (query) => {
   }
   await loadCategories();
   loadPayMethods();
+  loadAccounts();
   if (kitchenId.value) {
     ledgerApi.fx(kitchenId.value).then((f) => (fx.value = f)).catch(() => {});
   }
@@ -143,7 +179,17 @@ async function loadEntry() {
   }
 }
 
+/** 编辑模式：转账行后端 PUT 整体 400，前端直接挡住编辑入口 */
+const isTransfer = ref(false);
+
 function fillForm(e: LedgerEntryView) {
+  if (e.type === 'TRANSFER') {
+    isTransfer.value = true;
+    uni.showToast({ title: '转账记录不支持编辑，请删除后重记', icon: 'none' });
+    setTimeout(() => uni.navigateBack(), 900);
+    return;
+  }
+  isTransfer.value = false;
   type.value = e.type === 'INCOME' ? 'INCOME' : 'EXPENSE';
   category.value = e.category;
   date.value = e.date;
@@ -151,6 +197,7 @@ function fillForm(e: LedgerEntryView) {
   currency.value = (e.currency as Cur) || 'CNY';
   payMethod.value = e.paymentMethod || '';
   imageUrl.value = e.imageUrl || '';
+  accountId.value = e.accountId;
   subRows.value = (e.subItems && e.subItems.length
     ? e.subItems.map((s) => ({ name: s.name, amount: (s.amountFen / 100).toFixed(2) }))
     : [{ name: e.category, amount: (e.amountFen / 100).toFixed(2) }]);
@@ -366,7 +413,7 @@ const totalFen = computed(() => {
 const totalYuan = computed(() => (totalFen.value / 100).toFixed(2));
 
 function submit() {
-  if (submitting.value || !kitchenId.value) return;
+  if (submitting.value || !kitchenId.value || isTransfer.value) return;
   const subItems: { name: string; amountFen: number }[] = [];
   for (const r of subRows.value) {
     const name = r.name.trim();
@@ -401,6 +448,7 @@ function submit() {
     currency: currency.value,
     paymentMethod: payMethod.value || undefined,
     imageUrl: imageUrl.value || undefined,
+    accountId: accountId.value ?? undefined,
   };
   const req = editId.value
     ? ledgerApi.update(kitchenId.value, editId.value, payload)
@@ -439,6 +487,11 @@ function submit() {
       <view class="row" hover-class="press-dim" @tap="pickPay">
         <text class="label">支付方式</text>
         <text class="value">{{ payMethod || '请选择' }}</text>
+        <text class="chev">›</text>
+      </view>
+      <view v-if="!isTransfer" class="row" hover-class="press-dim" @tap="pickAccount">
+        <text class="label">账户</text>
+        <text class="value">{{ accountLabel || '未指定' }}</text>
         <text class="chev">›</text>
       </view>
       <view class="row">
@@ -528,6 +581,12 @@ function submit() {
       :items="paySheetItems"
       @select="onPayPick"
       @close="paySheetVisible = false"
+    />
+    <ActionSheet
+      :visible="acctSheetVisible"
+      :items="acctSheetItems"
+      @select="onAccountPick"
+      @close="acctSheetVisible = false"
     />
     <InputDialog
       :visible="catDialogVisible"
